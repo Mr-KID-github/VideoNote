@@ -6,8 +6,9 @@
 
 - **框架**: FastAPI + Uvicorn
 - **视频下载**: yt-dlp (支持 YouTube / Bilibili / 抖音等)
-- **音频转写**: OpenAI Whisper (本地推理)
-- **AI 总结**: OpenAI 兼容 API (支持 OpenAI / DeepSeek / 通义千问 / Ollama)
+- **音频转写**: OpenAI Whisper (本地推理) 或 Groq Cloud API
+- **AI 总结**: OpenAI 兼容 API / Anthropic 兼容 API (支持 OpenAI / DeepSeek / MiniMax / Ollama)
+- **MCP 支持**: 可作为 MCP 服务器被其他 AI 助手调用
 
 ## 🚀 快速开始
 
@@ -24,7 +25,7 @@ pip install -r requirements.txt
 
 ```bash
 cp .env.example .env
-# 编辑 .env 填入你的 LLM API Key
+# 编辑 .env 填入你的 API Keys
 ```
 
 ### 3. 启动服务
@@ -66,6 +67,41 @@ curl http://127.0.0.1:8900/api/task/{task_id}
 curl http://127.0.0.1:8900/api/styles
 ```
 
+## 🤖 MCP 服务器
+
+VideoNote 可作为 MCP 服务器被其他 AI 助手调用（如 Claude Code、Cursor 等）。
+
+### 配置方法
+
+在 `~/.mcp.json` 中添加：
+
+```json
+{
+  "mcpServers": {
+    "videonote": {
+      "command": "python",
+      "args": ["/path/to/VideoNote/mcp_server.py"]
+    }
+  }
+}
+```
+
+### 可用工具
+
+| 工具名 | 说明 |
+|--------|------|
+| `generate_video_note` | 生成视频笔记 |
+| `list_note_styles` | 获取支持的笔记风格 |
+
+### 使用示例
+
+```json
+{
+  "video_url": "https://www.bilibili.com/video/BV1xxx",
+  "style": "detailed"
+}
+```
+
 ## 📝 笔记风格
 
 | 风格 | 说明 |
@@ -82,6 +118,7 @@ curl http://127.0.0.1:8900/api/styles
 ```
 VideoNote/
 ├── main.py                          # 入口
+├── mcp_server.py                   # MCP 服务器
 ├── requirements.txt
 ├── .env.example
 ├── app/
@@ -96,10 +133,10 @@ VideoNote/
 │   │   └── ytdlp_downloader.py      #   yt-dlp 通用下载器
 │   ├── transcribers/                # 音频转写
 │   │   ├── base.py                  #   转写器基类
-│   │   └── whisper_transcriber.py   #   Whisper 转写器
+│   │   └── groq_transcriber.py     #   Groq Whisper 转写器
 │   ├── llm/                         # LLM 总结
 │   │   ├── base.py                  #   总结器基类
-│   │   ├── openai_llm.py            #   OpenAI 兼容实现
+│   │   ├── openai_llm.py            #   OpenAI / Anthropic 兼容实现
 │   │   └── prompts.py               #   Prompt 模板
 │   ├── services/                    # 业务逻辑
 │   │   └── note_service.py          #   Pipeline 编排

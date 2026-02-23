@@ -26,7 +26,7 @@ FFmpeg must be installed separately (required for audio extraction).
 ## Configuration
 
 All configuration is managed via `.env` file (copy from `.env.example`):
-- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` - LLM settings (supports OpenAI-compatible APIs)
+- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` - LLM settings (supports OpenAI-compatible and Anthropic-compatible APIs like MiniMax)
 - `TRANSCRIBER_TYPE` - Either `groq` (recommended, cloud) or `whisper` (local)
 - `GROQ_API_KEY` - Required if using groq transcriber
 - `WHISPER_MODEL_SIZE` / `WHISPER_DEVICE` - Local Whisper settings
@@ -46,20 +46,21 @@ The system uses a **pipeline-based architecture** with three main stages:
 
 3. **Summarize** (`app/llm/`) - Generates Markdown notes using LLM
    - Base class: `LLMSummarizer` in `base.py`
-   - Implementation: `OpenAILLM` (supports any OpenAI-compatible API)
+   - Implementation: `OpenAILLM` (OpenAI-compatible), `AnthropicLLM` (Anthropic-compatible for MiniMax)
    - Prompt templates in `prompts.py`
 
 ### Core Pipeline
 
 The `NoteService` class in `app/services/note_service.py` orchestrates the entire flow:
 ```
-video_url → download → transcribe → LLM summarize → markdown note
+video_url → download → transcribe → LLM summarize → screenshot processing → markdown note
 ```
 
-Each step caches results in `output/{task_id}/`:
+Each step caches results in `output/{datetime_title}/`:
 - `audio_meta.json` - Download metadata
 - `transcript.json` - Transcribed text with timestamps
-- `note.md` - Final Markdown output
+- `note.md` - Final Markdown output with screenshots
+- `screenshots/` - Extracted video screenshots
 - `status.json` - Task status
 - `result.json` - Final result
 
@@ -70,6 +71,14 @@ Defined in `app/routers/note.py`:
 - `POST /api/generate_sync` - Sync: waits for completion and returns result
 - `GET /api/task/{task_id}` - Poll async task status
 - `GET /api/styles` - List supported note styles
+
+### MCP Server
+
+VideoNote can be used as an MCP server for other AI assistants:
+
+- **File**: `mcp_server.py`
+- **Tools**: `generate_video_note`, `list_note_styles`
+- **Configuration**: Add to `~/.mcp.json`
 
 ### Note Styles
 
@@ -84,6 +93,7 @@ Six styles defined in `app/llm/prompts.py`:
 ## Key Files
 
 - `main.py` - Entry point, runs uvicorn
+- `mcp_server.py` - MCP server for AI assistant integration
 - `app/__init__.py` - FastAPI app factory
 - `app/config.py` - Settings dataclass, loads from .env
 - `app/services/note_service.py` - Core pipeline orchestration
