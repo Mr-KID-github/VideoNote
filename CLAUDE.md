@@ -1,0 +1,90 @@
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+
+## Project Overview
+
+VideoNote is a FastAPI-based backend system that generates structured Markdown notes from video URLs. It downloads video audio, transcribes it using Whisper (either Groq cloud API or local), and uses an LLM to generate formatted notes in various styles.
+
+## Commands
+
+### Run the server
+```bash
+python main.py
+# or
+uvicorn main:app --host 0.0.0.0 --port 8900 --reload
+```
+
+### Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### Required system dependency
+FFmpeg must be installed separately (required for audio extraction).
+
+## Configuration
+
+All configuration is managed via `.env` file (copy from `.env.example`):
+- `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` - LLM settings (supports OpenAI-compatible APIs)
+- `TRANSCRIBER_TYPE` - Either `groq` (recommended, cloud) or `whisper` (local)
+- `GROQ_API_KEY` - Required if using groq transcriber
+- `WHISPER_MODEL_SIZE` / `WHISPER_DEVICE` - Local Whisper settings
+
+## Architecture
+
+The system uses a **pipeline-based architecture** with three main stages:
+
+1. **Download** (`app/downloaders/`) - Downloads video audio using yt-dlp
+   - Base class: `Downloader` in `base.py`
+   - Implementation: `YtdlpDownloader` in `ytdlp_downloader.py`
+
+2. **Transcribe** (`app/transcribers/`) - Converts audio to text
+   - Base class: `Transcriber` in `base.py`
+   - Implementations: `WhisperTranscriber` (local), `GroqWhisperTranscriber` (cloud)
+   - Configurable via `TRANSCRIBER_TYPE` environment variable
+
+3. **Summarize** (`app/llm/`) - Generates Markdown notes using LLM
+   - Base class: `LLMSummarizer` in `base.py`
+   - Implementation: `OpenAILLM` (supports any OpenAI-compatible API)
+   - Prompt templates in `prompts.py`
+
+### Core Pipeline
+
+The `NoteService` class in `app/services/note_service.py` orchestrates the entire flow:
+```
+video_url → download → transcribe → LLM summarize → markdown note
+```
+
+Each step caches results in `output/{task_id}/`:
+- `audio_meta.json` - Download metadata
+- `transcript.json` - Transcribed text with timestamps
+- `note.md` - Final Markdown output
+- `status.json` - Task status
+- `result.json` - Final result
+
+### API Routes
+
+Defined in `app/routers/note.py`:
+- `POST /api/generate` - Async: returns task_id immediately, processes in background
+- `POST /api/generate_sync` - Sync: waits for completion and returns result
+- `GET /api/task/{task_id}` - Poll async task status
+- `GET /api/styles` - List supported note styles
+
+### Note Styles
+
+Six styles defined in `app/llm/prompts.py`:
+- `minimal` - Core要点 only
+- `detailed` - Complete content (default)
+- `academic` - Academic writing style
+- `tutorial` - Step-by-step instructions
+- `meeting` - Meeting minutes format
+- `xiaohongshu` - Casual with emojis
+
+## Key Files
+
+- `main.py` - Entry point, runs uvicorn
+- `app/__init__.py` - FastAPI app factory
+- `app/config.py` - Settings dataclass, loads from .env
+- `app/services/note_service.py` - Core pipeline orchestration
+- `app/llm/prompts.py` - System prompt and style templates
