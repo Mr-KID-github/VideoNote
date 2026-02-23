@@ -130,13 +130,22 @@ class VideoNoteMCP:
                     markdown = block.text.strip()
                     break
 
-            # 4. 保存到本地（和 API 一样）
+            # 4. 创建输出目录
             output_dir = Path(settings.output_dir)
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             safe_title = self._sanitize_filename(audio_meta.title)
             note_dir = output_dir / f"{timestamp}_{safe_title}"
             note_dir.mkdir(parents=True, exist_ok=True)
 
+            # 5. 处理截图
+            print(f"[MCP] 处理截图...", file=sys.stderr)
+            markdown = self._process_screenshots(
+                video_url=video_url,
+                markdown=markdown,
+                note_dir=note_dir,
+            )
+
+            # 6. 保存到本地（和 API 一样）
             # 保存 note.md
             (note_dir / "note.md").write_text(markdown, encoding="utf-8")
 
@@ -192,6 +201,71 @@ class VideoNoteMCP:
         """清理文件名，移除非法字符"""
         name = re.sub(r'[<>:"/\\|?*]', '', name)
         return name[:50] if len(name) > 50 else name
+
+    def _process_screenshots(self, video_url: str, markdown: str, note_dir: Path) -> str:
+        """处理笔记中的截图标记"""
+        import re
+
+        # 查找所有截图标记
+        pattern = r"\[\[Screenshot:(\d{1,2}):(\d{2})\]\]"
+        matches = re.findall(pattern, markdown)
+
+        if not matches:
+            print("[MCP] 没有发现截图标记", file=sys.stderr)
+            return markdown
+
+        # 解析时间戳
+        timestamps = []
+        for minutes, seconds in matches:
+            ts = int(minutes) * 60 + int(seconds)
+            timestamps.append(ts)
+
+        print(f"[MCP] 发现 {len(timestamps)} 个截图请求: {matches}", file=sys.stderr)
+
+        try:
+            # 查找已存在的视频文件
+            video_id = self.downloader.detect_video_id(video_url)
+            data_dir = Path(str(settings.data_dir))
+
+            # 查找已有的视频文件
+            video_path = None
+            for f in data_dir.glob(f"*_{video_id}_video.mp4"):
+                video_path = str(f)
+                break
+
+            if not video_path:
+                # 如果没有找到，下载视频
+                video_path = self.downloader.download_video(
+                    video_url=video_url,
+                    output_dir=str(settings.data_dir),
+                )
+            else:
+                print(f"[MCP] 使用已有视频: {video_path}", file=sys.stderr)
+
+            # 提取截图
+            frame_paths = self.downloader.extract_frames(
+                video_path=video_path,
+                timestamps=timestamps,
+                output_dir=str(note_dir / "screenshots"),
+            )
+
+            # 替换标记为图片
+            for i, (minutes, seconds) in enumerate(matches):
+                marker = f"[[Screenshot:{minutes}:{seconds}]]"
+                if i < len(frame_paths):
+                    rel_path = f"screenshots/{Path(frame_paths[i]).name}"
+                    img_markdown = f"![截图 {minutes}:{seconds}]({rel_path})"
+                    markdown = markdown.replace(marker, img_markdown)
+                    print(f"[MCP] 替换 {marker} -> {img_markdown}", file=sys.stderr)
+                else:
+                    markdown = markdown.replace(marker, "")
+                    print(f"[MCP] 截图失败，移除标记: {marker}", file=sys.stderr)
+
+        except Exception as e:
+            print(f"[MCP] 处理截图失败: {e}", file=sys.stderr)
+            markdown = re.sub(pattern, "", markdown)
+
+        return markdown
 
     def _format_segments(self, segments: List) -> str:
         """格式化转写分段"""
