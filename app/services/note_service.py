@@ -95,6 +95,14 @@ class NoteService:
 
     # ==================== 核心 Pipeline ====================
 
+    def _sanitize_filename(self, name: str) -> str:
+        """清理文件名，移除非法字符"""
+        import re
+        # 移除或替换非法字符
+        name = re.sub(r'[<>:"/\\|?*]', '', name)
+        # 限制长度
+        return name[:50] if len(name) > 50 else name
+
     def generate(
         self,
         video_url: str,
@@ -110,7 +118,7 @@ class NoteService:
         主流程入口: 视频 URL → Markdown 笔记
 
         :param video_url: 视频链接
-        :param task_id: 任务唯一 ID
+        :param task_id: 任务唯一 ID (UUID)
         :param platform: 平台 (auto 则智能检测)
         :param style: 笔记风格
         :param extras: 额外提示词
@@ -119,28 +127,54 @@ class NoteService:
         :param base_url: 覆盖默认 Base URL
         :return: NoteResult
         """
-        task_dir = settings.output_dir / task_id
-        task_dir.mkdir(parents=True, exist_ok=True)
+        from datetime import datetime
+
+        # 先创建临时目录
+        temp_dir = settings.output_dir / task_id
+        temp_dir.mkdir(parents=True, exist_ok=True)
+
+        # final_dir 会在下载完成后设置为日期时间+标题
+        final_dir: Path = temp_dir
 
         try:
             # ---- Step 1: 下载 ----
-            self._update_status(task_dir, "downloading", "正在下载视频音频...")
+            self._update_status(temp_dir, "downloading", "正在下载视频音频...")
 
             audio_meta = self._step_download(
                 video_url=video_url,
-                cache_file=task_dir / "audio_meta.json",
+                cache_file=temp_dir / "audio_meta.json",
             )
 
+            # ---- Step 1.5: 重命名目录为日期时间+标题 ----
+            # 生成有意义的目录名: YYYYMMDD_HHMMSS_视频标题
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_title = self._sanitize_filename(audio_meta.title)
+            new_dir_name = f"{timestamp}_{safe_title}"
+            final_dir = settings.output_dir / new_dir_name
+
+            # 如果同名目录已存在，添加序号
+            counter = 1
+            while final_dir.exists():
+                final_dir = settings.output_dir / f"{new_dir_name}_{counter}"
+                counter += 1
+
+            # 重命名目录
+            temp_dir.rename(final_dir)
+            logger.info(f"[目录] 已重命名: {task_id} -> {new_dir_name}")
+
+            # 保存 task_id 到新目录的映射
+            (final_dir / ".task_id").write_text(task_id, encoding="utf-8")
+
             # ---- Step 2: 转写 ----
-            self._update_status(task_dir, "transcribing", "正在转写音频...")
+            self._update_status(final_dir, "transcribing", "正在转写音频...")
 
             transcript = self._step_transcribe(
                 audio_path=audio_meta.file_path,
-                cache_file=task_dir / "transcript.json",
+                cache_file=final_dir / "transcript.json",
             )
 
             # ---- Step 3: LLM 总结 ----
-            self._update_status(task_dir, "summarizing", "正在生成笔记...")
+            self._update_status(final_dir, "summarizing", "正在生成笔记...")
 
             llm = self._get_llm(model_name, api_key, base_url)
             markdown = llm.summarize(
@@ -151,15 +185,15 @@ class NoteService:
             )
 
             # ---- Step 4: 处理截图 ----
-            self._update_status(task_dir, "screenshots", "正在处理截图...")
+            self._update_status(final_dir, "screenshots", "正在处理截图...")
             markdown = self._process_screenshots(
                 video_url=video_url,
                 markdown=markdown,
-                task_dir=task_dir,
+                task_dir=final_dir,
             )
 
             # 缓存 Markdown
-            (task_dir / "note.md").write_text(markdown, encoding="utf-8")
+            (final_dir / "note.md").write_text(markdown, encoding="utf-8")
 
             # ---- Step 5: 保存最终结果 ----
             result = NoteResult(
@@ -167,15 +201,16 @@ class NoteService:
                 transcript=transcript,
                 audio_meta=audio_meta,
             )
-            self._save_result(task_dir, result)
-            self._update_status(task_dir, "success", "笔记生成完成")
+            self._save_result(final_dir, result)
+            self._update_status(final_dir, "success", "笔记生成完成")
 
-            logger.info(f"[Pipeline] 任务完成: task_id={task_id}")
+            logger.info(f"[Pipeline] 任务完成: task_id={task_id}, dir={new_dir_name}")
             return result
 
         except Exception as exc:
             logger.error(f"[Pipeline] 任务失败: task_id={task_id}, error={exc}", exc_info=True)
-            self._update_status(task_dir, "failed", str(exc))
+            if final_dir.exists():
+                self._update_status(final_dir, "failed", str(exc))
             raise
 
     # ==================== Pipeline 子步骤 ====================
@@ -316,9 +351,31 @@ class NoteService:
         temp_file.replace(status_file)
 
     @staticmethod
+    def _find_dir_by_task_id(task_id: str) -> Optional[Path]:
+        """根据 task_id 查找任务目录"""
+        # 1. 直接查找（UUID 格式）
+        direct_dir = settings.output_dir / task_id
+        if direct_dir.exists() and (direct_dir / "status.json").exists():
+            return direct_dir
+
+        # 2. 通过映射文件查找
+        for item in settings.output_dir.iterdir():
+            if item.is_dir():
+                mapping_file = item / ".task_id"
+                if mapping_file.exists():
+                    stored_task_id = mapping_file.read_text(encoding="utf-8").strip()
+                    if stored_task_id == task_id:
+                        return item
+        return None
+
+    @staticmethod
     def get_status(task_id: str) -> dict:
         """读取任务状态"""
-        task_dir = settings.output_dir / task_id
+        # 尝试直接查找或通过 task_id 映射查找
+        task_dir = NoteService._find_dir_by_task_id(task_id)
+        if not task_dir:
+            task_dir = settings.output_dir / task_id
+
         status_file = task_dir / "status.json"
 
         if not status_file.exists():
@@ -329,7 +386,11 @@ class NoteService:
     @staticmethod
     def get_result(task_id: str) -> Optional[dict]:
         """读取任务结果"""
-        task_dir = settings.output_dir / task_id
+        # 尝试直接查找或通过 task_id 映射查找
+        task_dir = NoteService._find_dir_by_task_id(task_id)
+        if not task_dir:
+            task_dir = settings.output_dir / task_id
+
         result_file = task_dir / "result.json"
 
         if not result_file.exists():
