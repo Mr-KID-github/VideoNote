@@ -150,10 +150,18 @@ class NoteService:
                 extras=extras,
             )
 
+            # ---- Step 4: 处理截图 ----
+            self._update_status(task_dir, "screenshots", "正在处理截图...")
+            markdown = self._process_screenshots(
+                video_url=video_url,
+                markdown=markdown,
+                task_dir=task_dir,
+            )
+
             # 缓存 Markdown
             (task_dir / "note.md").write_text(markdown, encoding="utf-8")
 
-            # ---- Step 4: 保存最终结果 ----
+            # ---- Step 5: 保存最终结果 ----
             result = NoteResult(
                 markdown=markdown,
                 transcript=transcript,
@@ -231,6 +239,70 @@ class NoteService:
             encoding="utf-8",
         )
         return transcript
+
+    def _process_screenshots(
+        self,
+        video_url: str,
+        markdown: str,
+        task_dir: Path,
+    ) -> str:
+        """处理笔记中的截图标记
+
+        检测 [[Screenshot:MM:SS]] 标记，下载视频并提取截图，
+        替换为 Markdown 图片链接
+        """
+        import re
+
+        # 查找所有截图标记
+        pattern = r"\[\[Screenshot:(\d{1,2}):(\d{2})\]\]"
+        matches = re.findall(pattern, markdown)
+
+        if not matches:
+            logger.info("[截图] 没有发现截图标记")
+            return markdown
+
+        # 解析时间戳
+        timestamps = []
+        for minutes, seconds in matches:
+            ts = int(minutes) * 60 + int(seconds)
+            timestamps.append(ts)
+
+        logger.info(f"[截图] 发现 {len(timestamps)} 个截图请求: {matches}")
+
+        try:
+            # 下载视频
+            video_path = self.downloader.download_video(
+                video_url=video_url,
+                output_dir=str(settings.data_dir),
+            )
+
+            # 提取截图
+            frame_paths = self.downloader.extract_frames(
+                video_path=video_path,
+                timestamps=timestamps,
+                output_dir=str(task_dir / "screenshots"),
+            )
+
+            # 替换标记为图片
+            for i, (minutes, seconds) in enumerate(matches):
+                marker = f"[[Screenshot:{minutes}:{seconds}]]"
+                if i < len(frame_paths):
+                    # 使用相对路径
+                    rel_path = f"screenshots/{Path(frame_paths[i]).name}"
+                    img_markdown = f"![截图 {minutes}:{seconds}]({rel_path})"
+                    markdown = markdown.replace(marker, img_markdown)
+                    logger.info(f"[截图] 替换 {marker} -> {img_markdown}")
+                else:
+                    # 移除无效的标记
+                    markdown = markdown.replace(marker, "")
+                    logger.warning(f"[截图] 截图失败，移除标记: {marker}")
+
+        except Exception as e:
+            logger.warning(f"[截图] 处理截图失败: {e}")
+            # 移除所有截图标记
+            markdown = re.sub(pattern, "", markdown)
+
+        return markdown
 
     # ==================== 状态管理 ====================
 
