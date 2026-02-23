@@ -8,6 +8,11 @@ VideoNote is a FastAPI-based backend system that generates structured Markdown n
 
 ## Commands
 
+### Activate conda environment
+```bash
+conda activate videonote
+```
+
 ### Run the server
 ```bash
 python main.py
@@ -23,13 +28,39 @@ pip install -r requirements.txt
 ### Required system dependency
 FFmpeg must be installed separately (required for audio extraction).
 
+## Faster-Whisper (Recommended Local Transcription)
+
+Using `faster-whisper` is recommended for local transcription - it's faster than openai-whisper and has lower memory usage.
+
+### Setup
+```bash
+# Make sure to activate conda environment first
+conda activate videonote
+
+# Install faster-whisper
+pip install faster-whisper
+```
+
+### Configuration (.env)
+```bash
+TRANSCRIBER_TYPE=faster-whisper
+WHISPER_MODEL_SIZE=base       # tiny/base/small/medium/large-v3
+WHISPER_DEVICE=cpu             # cpu or cuda (if you have GPU)
+FASTER_WHISPER_COMPUTE_TYPE=int8  # int8 (fastest, CPU recommended) / float16 / float32
+```
+
+### Model Download
+Models will be automatically downloaded on first use. Default `base` model is ~140MB.
+
 ## Configuration
 
 All configuration is managed via `.env` file (copy from `.env.example`):
 - `LLM_API_KEY` / `LLM_BASE_URL` / `LLM_MODEL` - LLM settings (supports OpenAI-compatible and Anthropic-compatible APIs like MiniMax)
-- `TRANSCRIBER_TYPE` - Either `groq` (recommended, cloud) or `whisper` (local)
+- `TRANSCRIBER_TYPE` - Choose from: `groq` (cloud), `whisper` (local openai-whisper), `faster-whisper` (recommended local), or `sensevoice`/`sensevoice-local`
 - `GROQ_API_KEY` - Required if using groq transcriber
-- `WHISPER_MODEL_SIZE` / `WHISPER_DEVICE` - Local Whisper settings
+- `WHISPER_MODEL_SIZE` - Model size: tiny/base/small/medium/large-v3 (default: base)
+- `WHISPER_DEVICE` - Device: cpu/cuda (default: cpu)
+- `FASTER_WHISPER_COMPUTE_TYPE` - Compute type: int8/float16/float32 (default: int8, recommended for CPU)
 
 ## Architecture
 
@@ -41,7 +72,7 @@ The system uses a **pipeline-based architecture** with three main stages:
 
 2. **Transcribe** (`app/transcribers/`) - Converts audio to text
    - Base class: `Transcriber` in `base.py`
-   - Implementations: `WhisperTranscriber` (local), `GroqWhisperTranscriber` (cloud)
+   - Implementations: `WhisperTranscriber` (local openai-whisper), `FasterWhisperTranscriber` (local, recommended), `GroqWhisperTranscriber` (cloud)
    - Configurable via `TRANSCRIBER_TYPE` environment variable
 
 3. **Summarize** (`app/llm/`) - Generates Markdown notes using LLM

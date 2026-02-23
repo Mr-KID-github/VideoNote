@@ -38,8 +38,32 @@ def _create_transcriber() -> Transcriber:
             device=settings.whisper_device,
         )
 
+    elif t_type == "faster-whisper":
+        from app.transcribers.faster_whisper_transcriber import FasterWhisperTranscriber
+        return FasterWhisperTranscriber(
+            model_size=settings.whisper_model_size,
+            device=settings.whisper_device,
+            compute_type=settings.faster_whisper_compute_type,
+        )
+
+    elif t_type == "sensevoice":
+        from app.transcribers.sensevoice_transcriber import SenseVoiceTranscriber
+        return SenseVoiceTranscriber(
+            base_url=settings.sensevoice_base_url,
+            language=settings.sensevoice_language,
+        )
+
+    elif t_type == "sensevoice-local":
+        from app.transcribers.sensevoice_local_transcriber import SenseVoiceLocalTranscriber
+        return SenseVoiceLocalTranscriber(
+            model_size=settings.sensevoice_model_size,
+            device="cuda" if settings.sensevoice_use_gpu else "cpu",
+            language=settings.sensevoice_language,
+            use_gpu=settings.sensevoice_use_gpu,
+        )
+
     else:
-        raise ValueError(f"不支持的转写器类型: {t_type}，可选: groq / whisper")
+        raise ValueError(f"不支持的转写器类型: {t_type}，可选: groq / whisper / faster-whisper / sensevoice / sensevoice-local")
 
 
 class NoteService:
@@ -79,8 +103,8 @@ class NoteService:
         base_url = base_url or settings.llm_base_url
         model = model_name or settings.llm_model
 
-        # 检测是否是 MiniMax Anthropic 兼容模式
-        if "minimaxi.com/anthropic" in base_url:
+        # 检测是否是 Anthropic 兼容模式 (MiniMax / 智谱 GLM)
+        if "minimaxi.com/anthropic" in base_url or "open.bigmodel.cn/api/anthropic" in base_url:
             return AnthropicLLM(
                 api_key=api_key,
                 base_url=base_url,
@@ -171,6 +195,7 @@ class NoteService:
             transcript = self._step_transcribe(
                 audio_path=audio_meta.file_path,
                 cache_file=final_dir / "transcript.json",
+                task_dir=final_dir,
             )
 
             # ---- Step 3: LLM 总结 ----
@@ -248,8 +273,14 @@ class NoteService:
         self,
         audio_path: str,
         cache_file: Path,
+        task_dir: Optional[Path] = None,
     ) -> TranscriptResult:
-        """Step 2: 转写音频（带缓存）"""
+        """Step 2: 转写音频（带缓存）
+
+        :param audio_path: 音频文件路径
+        :param cache_file: 缓存文件路径
+        :param task_dir: 任务目录（用于状态更新）
+        """
 
         # 检查缓存
         if cache_file.exists():
@@ -265,8 +296,19 @@ class NoteService:
             except Exception as e:
                 logger.warning(f"[转写] 缓存解析失败，重新转写: {e}")
 
+        # 检查是否为本地转录器（需要加载模型）
+        transcriber_type = settings.transcriber_type.lower()
+        is_local_transcriber = transcriber_type in ["whisper", "faster-whisper", "sensevoice-local"]
+
+        if is_local_transcriber and task_dir:
+            self._update_status(task_dir, "transcribing", "正在加载本地语音模型...")
+
         # 执行转写
+        logger.info(f"[转写] 开始处理: {audio_path}")
         transcript = self.transcriber.transcribe(file_path=audio_path)
+
+        if task_dir:
+            self._update_status(task_dir, "transcribing", "转录完成，正在保存...")
 
         # 写入缓存
         cache_file.write_text(

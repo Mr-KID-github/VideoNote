@@ -25,7 +25,7 @@ class Settings:
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
     llm_model: str = os.getenv("LLM_MODEL", "gpt-4o-mini")
 
-    # 转写器类型: groq / whisper
+    # 转写器类型: groq / whisper / faster-whisper / sensevoice
     transcriber_type: str = os.getenv("TRANSCRIBER_TYPE", "groq")
 
     # Groq Whisper (云端转写，零依赖，推荐)
@@ -34,6 +34,17 @@ class Settings:
     # 本地 Whisper (需安装 openai-whisper + ffmpeg)
     whisper_model_size: str = os.getenv("WHISPER_MODEL_SIZE", "base")
     whisper_device: str = os.getenv("WHISPER_DEVICE", "cpu")
+
+    # Faster-Whisper (推荐本地方案，Windows 友好)
+    faster_whisper_compute_type: str = os.getenv("FASTER_WHISPER_COMPUTE_TYPE", "int8")
+
+    # SenseVoice (本地部署服务)
+    sensevoice_base_url: str = os.getenv("SENSEVOICE_BASE_URL", "http://localhost:50000")
+    sensevoice_language: str = os.getenv("SENSEVOICE_LANGUAGE", "auto")
+
+    # SenseVoice 本地模型 (直接加载，无需 API 服务)
+    sensevoice_model_size: str = os.getenv("SENSEVOICE_MODEL_SIZE", "small")
+    sensevoice_use_gpu: bool = os.getenv("SENSEVOICE_USE_GPU", "false").lower() == "true"
 
     # 存储路径
     data_dir: Path = BASE_DIR / os.getenv("DATA_DIR", "data")

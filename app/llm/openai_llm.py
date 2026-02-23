@@ -37,8 +37,13 @@ class OpenAILLM(LLMSummarizer):
     ):
         self.model = model
         self.temperature = temperature
-        self.client = OpenAI(api_key=api_key, base_url=base_url)
-        logger.info(f"[LLM] 初始化完成: model={model}, base_url={base_url}")
+        # 设置超时时间为 5 分钟，处理长文本
+        self.client = OpenAI(
+            api_key=api_key,
+            base_url=base_url,
+            timeout=300.0,
+        )
+        logger.info(f"[LLM] 初始化完成: model={model}, base_url={base_url}, timeout=300s")
 
     @staticmethod
     def _format_time(seconds: float) -> str:
