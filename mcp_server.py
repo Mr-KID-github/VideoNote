@@ -15,7 +15,8 @@ from pathlib import Path
 # 添加项目路径
 sys.path.insert(0, str(Path(__file__).parent))
 
-from datetime import timedelta
+from datetime import timedelta, datetime
+import re
 from typing import Any, List
 
 from app.config import settings
@@ -129,6 +130,32 @@ class VideoNoteMCP:
                     markdown = block.text.strip()
                     break
 
+            # 4. 保存到本地（和 API 一样）
+            output_dir = Path(settings.output_dir)
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            safe_title = self._sanitize_filename(audio_meta.title)
+            note_dir = output_dir / f"{timestamp}_{safe_title}"
+            note_dir.mkdir(parents=True, exist_ok=True)
+
+            # 保存 note.md
+            (note_dir / "note.md").write_text(markdown, encoding="utf-8")
+
+            # 保存 result.json
+            result_data = {
+                "title": audio_meta.title,
+                "duration": audio_meta.duration,
+                "platform": audio_meta.platform,
+                "video_id": audio_meta.video_id,
+                "cover_url": audio_meta.cover_url,
+                "markdown": markdown,
+            }
+            (note_dir / "result.json").write_text(
+                json.dumps(result_data, ensure_ascii=False, indent=2),
+                encoding="utf-8"
+            )
+
+            print(f"[MCP] 笔记已保存到: {note_dir}", file=sys.stderr)
+
             return {
                 "success": True,
                 "title": audio_meta.title,
@@ -136,6 +163,7 @@ class VideoNoteMCP:
                 "platform": audio_meta.platform,
                 "video_id": audio_meta.video_id,
                 "markdown": markdown,
+                "output_path": str(note_dir),
             }
 
         except Exception as e:
@@ -159,6 +187,11 @@ class VideoNoteMCP:
         minutes = total_seconds // 60
         secs = total_seconds % 60
         return f"{minutes:02d}:{secs:02d}"
+
+    def _sanitize_filename(self, name: str) -> str:
+        """清理文件名，移除非法字符"""
+        name = re.sub(r'[<>:"/\\|?*]', '', name)
+        return name[:50] if len(name) > 50 else name
 
     def _format_segments(self, segments: List) -> str:
         """格式化转写分段"""
