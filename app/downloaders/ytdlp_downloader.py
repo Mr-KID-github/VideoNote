@@ -6,6 +6,7 @@ import logging
 import os
 import re
 import subprocess
+from datetime import datetime
 from pathlib import Path
 from typing import Optional, List
 from urllib.parse import urlparse, parse_qs
@@ -66,12 +67,40 @@ class YtdlpDownloader(Downloader):
         下载音频并返回元数据
 
         使用 yt-dlp 提取最佳音频流，转为 mp3 格式
+        文件命名格式: YYYYMMDD_HHMMSS_videoID.mp3
         """
         os.makedirs(output_dir, exist_ok=True)
-        output_template = os.path.join(output_dir, "%(id)s.%(ext)s")
 
         platform = self.detect_platform(video_url)
         logger.info(f"[下载] 平台={platform}, URL={video_url}")
+
+        # 先获取视频信息（不下载）
+        ydl_opts_info = {
+            "quiet": True,
+            "no_warnings": True,
+            "noplaylist": True,
+        }
+        if platform == "bilibili":
+            ydl_opts_info["http_headers"] = {
+                "Referer": "https://www.bilibili.com/",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            }
+
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            video_id = info.get("id", "unknown")
+            title = info.get("title", "Untitled")
+            duration = info.get("duration", 0)
+            cover_url = info.get("thumbnail")
+
+        # 使用日期时间 + video_id 命名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename_prefix = f"{timestamp}_{video_id}"
+        output_template = os.path.join(output_dir, f"{filename_prefix}.%(ext)s")
 
         ydl_opts = {
             "format": "bestaudio[ext=m4a]/bestaudio/best",
@@ -88,24 +117,12 @@ class YtdlpDownloader(Downloader):
             "no_warnings": True,
         }
 
-        # Bilibili 需要特殊 header
         if platform == "bilibili":
-            ydl_opts["http_headers"] = {
-                "Referer": "https://www.bilibili.com/",
-                "User-Agent": (
-                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-                    "AppleWebKit/537.36 (KHTML, like Gecko) "
-                    "Chrome/120.0.0.0 Safari/537.36"
-                ),
-            }
+            ydl_opts["http_headers"] = ydl_opts_info["http_headers"]
 
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-            info = ydl.extract_info(video_url, download=True)
-            video_id = info.get("id", "unknown")
-            title = info.get("title", "Untitled")
-            duration = info.get("duration", 0)
-            cover_url = info.get("thumbnail")
-            audio_path = os.path.join(output_dir, f"{video_id}.mp3")
+            ydl.extract_info(video_url, download=True)
+            audio_path = os.path.join(output_dir, f"{filename_prefix}.mp3")
 
         logger.info(f"[下载完成] {title} ({duration:.0f}s) -> {audio_path}")
 
@@ -126,24 +143,44 @@ class YtdlpDownloader(Downloader):
         :param video_url: 视频链接
         :param output_dir: 输出目录
         :return: 视频文件路径
+        文件命名格式: YYYYMMDD_HHMMSS_videoID_video.mp4
         """
         os.makedirs(output_dir, exist_ok=True)
-        video_id = self.detect_video_id(video_url)
-        video_path = os.path.join(output_dir, f"{video_id}_video.mp4")
+
+        # 先获取 video_id
+        platform = self.detect_platform(video_url)
+        ydl_opts_info = {"quiet": True, "no_warnings": True, "noplaylist": True}
+        if platform == "bilibili":
+            ydl_opts_info["http_headers"] = {
+                "Referer": "https://www.bilibili.com/",
+                "User-Agent": (
+                    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                    "AppleWebKit/537.36 (KHTML, like Gecko) "
+                    "Chrome/120.0.0.0 Safari/537.36"
+                ),
+            }
+
+        with yt_dlp.YoutubeDL(ydl_opts_info) as ydl:
+            info = ydl.extract_info(video_url, download=False)
+            video_id = info.get("id", "unknown")
+
+        # 使用日期时间 + video_id 命名
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename_prefix = f"{timestamp}_{video_id}_video"
+        video_path = os.path.join(output_dir, f"{filename_prefix}.mp4")
 
         # 如果视频已存在，直接返回
         if os.path.exists(video_path):
             logger.info(f"[视频] 使用缓存: {video_path}")
             return video_path
 
-        platform = self.detect_platform(video_url)
         logger.info(f"[视频下载] 平台={platform}, URL={video_url}")
 
         # 通用格式选项
         ydl_opts = {
             # 优先 mp4，没有就用其他格式
             "format": "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best[ext=mp4]/best",
-            "outtmpl": os.path.join(output_dir, f"{video_id}_video.%(ext)s"),
+            "outtmpl": os.path.join(output_dir, f"{filename_prefix}.%(ext)s"),
             "noplaylist": True,
             "quiet": True,
             "no_warnings": True,
