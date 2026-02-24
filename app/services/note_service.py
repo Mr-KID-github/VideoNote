@@ -4,6 +4,7 @@
 """
 import json
 import logging
+import time
 from dataclasses import asdict
 from pathlib import Path
 from typing import Optional
@@ -152,6 +153,10 @@ class NoteService:
         :return: NoteResult
         """
         from datetime import datetime
+        import time
+
+        # 记录任务开始时间
+        task_start_time = time.time()
 
         # 先创建临时目录
         temp_dir = settings.output_dir / task_id
@@ -160,14 +165,19 @@ class NoteService:
         # final_dir 会在下载完成后设置为日期时间+标题
         final_dir: Path = temp_dir
 
+        # 记录各步骤耗时
+        step_timings = {}
+
         try:
             # ---- Step 1: 下载 ----
+            step_start = time.time()
             self._update_status(temp_dir, "downloading", "正在下载视频音频...")
 
             audio_meta = self._step_download(
                 video_url=video_url,
                 cache_file=temp_dir / "audio_meta.json",
             )
+            step_timings["download"] = time.time() - step_start
 
             # ---- Step 1.5: 重命名目录为日期时间+标题 ----
             # 生成有意义的目录名: YYYYMMDD_HHMMSS_视频标题
@@ -190,6 +200,7 @@ class NoteService:
             (final_dir / ".task_id").write_text(task_id, encoding="utf-8")
 
             # ---- Step 2: 转写 ----
+            step_start = time.time()
             self._update_status(final_dir, "transcribing", "正在转写音频...")
 
             transcript = self._step_transcribe(
@@ -197,8 +208,10 @@ class NoteService:
                 cache_file=final_dir / "transcript.json",
                 task_dir=final_dir,
             )
+            step_timings["transcribe"] = time.time() - step_start
 
             # ---- Step 3: LLM 总结 ----
+            step_start = time.time()
             self._update_status(final_dir, "summarizing", "正在生成笔记...")
 
             llm = self._get_llm(model_name, api_key, base_url)
@@ -208,14 +221,17 @@ class NoteService:
                 style=style,
                 extras=extras,
             )
+            step_timings["summarize"] = time.time() - step_start
 
             # ---- Step 4: 处理截图 ----
+            step_start = time.time()
             self._update_status(final_dir, "screenshots", "正在处理截图...")
             markdown = self._process_screenshots(
                 video_url=video_url,
                 markdown=markdown,
                 task_dir=final_dir,
             )
+            step_timings["screenshots"] = time.time() - step_start
 
             # 缓存 Markdown
             (final_dir / "note.md").write_text(markdown, encoding="utf-8")
@@ -227,13 +243,21 @@ class NoteService:
                 audio_meta=audio_meta,
             )
             self._save_result(final_dir, result)
-            self._update_status(final_dir, "success", "笔记生成完成")
 
-            logger.info(f"[Pipeline] 任务完成: task_id={task_id}, dir={new_dir_name}")
+            # 计算总耗时
+            total_time = time.time() - task_start_time
+            step_timings["total"] = total_time
+
+            # 格式化耗时输出
+            timing_str = ", ".join([f"{k}: {v:.1f}s" for k, v in step_timings.items()])
+
+            self._update_status(final_dir, "success", "笔记生成完成")
+            logger.info(f"[Pipeline] 任务完成: task_id={task_id}, dir={new_dir_name}, {timing_str}")
             return result
 
         except Exception as exc:
-            logger.error(f"[Pipeline] 任务失败: task_id={task_id}, error={exc}", exc_info=True)
+            total_time = time.time() - task_start_time
+            logger.error(f"[Pipeline] 任务失败: task_id={task_id}, error={exc}, total_time={total_time:.1f}s", exc_info=True)
             if final_dir.exists():
                 self._update_status(final_dir, "failed", str(exc))
             raise
