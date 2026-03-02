@@ -1,0 +1,90 @@
+import { Loader2, CheckCircle, XCircle, FileAudio, Download, Mic, FileText } from 'lucide-react'
+import clsx from 'clsx'
+
+interface GenerateProgressProps {
+  status: 'idle' | 'uploading' | 'processing' | 'success' | 'failed'
+  progress: number
+  currentStep: string
+  error?: string
+}
+
+const steps = [
+  { key: 'uploading', label: '上传文件', icon: FileAudio },
+  { key: 'downloading', label: '下载视频', icon: Download },
+  { key: 'transcribing', label: '转录音频', icon: Mic },
+  { key: 'summarizing', label: '生成笔记', icon: FileText },
+]
+
+export function GenerateProgress({ status, progress, currentStep, error }: GenerateProgressProps) {
+  const getStepStatus = (stepKey: string) => {
+    if (status === 'failed') return 'failed'
+    const currentIndex = steps.findIndex(s => s.key === currentStep)
+    const stepIndex = steps.findIndex(s => s.key === stepKey)
+    if (stepIndex < currentIndex) return 'completed'
+    if (stepIndex === currentIndex) return status === 'processing' ? 'processing' : 'pending'
+    return 'pending'
+  }
+
+  if (status === 'idle') return null
+
+  return (
+    <div className="space-y-6">
+      {/* 进度条 */}
+      <div className="space-y-2">
+        <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
+          <span>{currentStep || '准备中...'}</span>
+          <span>{progress}%</span>
+        </div>
+        <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
+          <div
+            className={clsx(
+              'h-full transition-all duration-300',
+              status === 'failed' ? 'bg-red-500' : 'bg-primary-light dark:bg-primary-dark'
+            )}
+            style={{ width: `${status === 'failed' ? 100 : progress}%` }}
+          />
+        </div>
+      </div>
+
+      {/* 步骤列表 */}
+      <div className="space-y-3">
+        {steps.map((step) => {
+          const stepStatus = getStepStatus(step.key)
+          const Icon = step.icon
+
+          return (
+            <div
+              key={step.key}
+              className={clsx(
+                'flex items-center gap-3 p-3 rounded-lg',
+                stepStatus === 'processing' ? 'bg-primary-light/10 dark:bg-primary-dark/10' : ''
+              )}
+            >
+              {stepStatus === 'completed' && <CheckCircle className="w-5 h-5 text-green-500" />}
+              {stepStatus === 'processing' && <Loader2 className="w-5 h-5 animate-spin text-primary-light dark:text-primary-dark" />}
+              {stepStatus === 'failed' && <XCircle className="w-5 h-5 text-red-500" />}
+              {stepStatus === 'pending' && <Icon className="w-5 h-5 text-gray-300 dark:text-gray-600" />}
+
+              <span className={clsx(
+                'text-sm',
+                stepStatus === 'completed' && 'text-green-600 dark:text-green-400',
+                stepStatus === 'processing' && 'text-primary-light dark:text-primary-dark font-medium',
+                stepStatus === 'failed' && 'text-red-600 dark:text-red-400',
+                stepStatus === 'pending' && 'text-gray-400'
+              )}>
+                {step.label}
+              </span>
+            </div>
+          )
+        })}
+      </div>
+
+      {/* 错误信息 */}
+      {error && (
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
+          <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>
+        </div>
+      )}
+    </div>
+  )
+}
