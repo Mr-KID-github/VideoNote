@@ -2,12 +2,14 @@
 Request and response models for note generation.
 """
 from dataclasses import dataclass
-from typing import Optional
+from typing import Literal, Optional
 
 from pydantic import BaseModel
 
 from app.models.audio import AudioDownloadResult
 from app.models.transcript import TranscriptResult
+
+OutputLanguage = Literal["en", "zh-CN"]
 
 
 class NoteRequest(BaseModel):
@@ -15,6 +17,7 @@ class NoteRequest(BaseModel):
     platform: str = "auto"
     style: Optional[str] = "detailed"
     extras: Optional[str] = None
+    output_language: Optional[OutputLanguage] = None
     model_profile_id: Optional[str] = None
     model_name: Optional[str] = None
     api_key: Optional[str] = None
@@ -26,6 +29,7 @@ class LocalFileRequest(BaseModel):
     title: Optional[str] = None
     style: Optional[str] = "meeting"
     extras: Optional[str] = None
+    output_language: Optional[OutputLanguage] = None
     model_profile_id: Optional[str] = None
     model_name: Optional[str] = None
     api_key: Optional[str] = None

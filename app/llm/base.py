@@ -17,6 +17,7 @@ class LLMSummarizer(ABC):
         segments: List[TranscriptSegment],
         style: str = "detailed",
         extras: str | None = None,
+        output_language: str = "zh-CN",
     ) -> str:
         """
         将转写结果总结为结构化 Markdown 笔记

@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { CheckCircle, Download, FileAudio, FileText, Image, Loader2, Mic, XCircle } from 'lucide-react'
+import { useI18n } from '../../lib/i18n'
 
 interface GenerateProgressProps {
   status: 'idle' | 'uploading' | 'processing' | 'success' | 'failed'
@@ -8,17 +9,17 @@ interface GenerateProgressProps {
   error?: string
 }
 
-const steps = [
-  { key: 'uploading', label: 'Prepare request', icon: FileAudio },
-  { key: 'downloading', label: 'Download audio', icon: Download },
-  { key: 'transcribing', label: 'Transcribe audio', icon: Mic },
-  { key: 'summarizing', label: 'Generate note', icon: FileText },
-  { key: 'screenshots', label: 'Process screenshots', icon: Image },
-]
-
-const stepLabels = Object.fromEntries(steps.map((step) => [step.key, step.label]))
-
 export function GenerateProgress({ status, progress, currentStep, error }: GenerateProgressProps) {
+  const { copy } = useI18n()
+  const steps = [
+    { key: 'uploading', label: copy.progress.prepareRequest, icon: FileAudio },
+    { key: 'downloading', label: copy.progress.downloadAudio, icon: Download },
+    { key: 'transcribing', label: copy.progress.transcribeAudio, icon: Mic },
+    { key: 'summarizing', label: copy.progress.generateNote, icon: FileText },
+    { key: 'screenshots', label: copy.progress.processScreenshots, icon: Image },
+  ]
+  const stepLabels = Object.fromEntries(steps.map((step) => [step.key, step.label]))
+
   const getStepStatus = (stepKey: string) => {
     if (status === 'success') return 'completed'
     if (status === 'failed') return 'failed'
@@ -35,7 +36,13 @@ export function GenerateProgress({ status, progress, currentStep, error }: Gener
     <div className="space-y-6">
       <div className="space-y-2">
         <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-          <span>{status === 'success' ? 'Completed' : status === 'failed' ? 'Failed' : stepLabels[currentStep] || 'Preparing...'}</span>
+          <span>
+            {status === 'success'
+              ? copy.progress.completed
+              : status === 'failed'
+                ? copy.progress.failed
+                : stepLabels[currentStep] || copy.progress.preparing}
+          </span>
           <span>{progress}%</span>
         </div>
         <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">

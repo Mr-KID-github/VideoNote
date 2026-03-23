@@ -1,72 +1,113 @@
-"""
-Prompt 模板模块
-定义系统 prompt 和各种笔记风格
-"""
+from typing import Literal
 
-# ==================== 系统 Prompt ====================
+OutputLanguage = Literal["en", "zh-CN"]
+DEFAULT_OUTPUT_LANGUAGE: OutputLanguage = "zh-CN"
+SUPPORTED_OUTPUT_LANGUAGES: tuple[OutputLanguage, ...] = ("en", "zh-CN")
 
-SYSTEM_PROMPT = """你是一个专业的视频笔记助手，擅长将视频转录内容整理成清晰、有条理且信息丰富的 Markdown 笔记。
+STYLE_MAP: dict[str, str] = {
+    "minimal": "Minimal notes focused on the most important points.",
+    "detailed": "Detailed notes with examples, details, and supporting facts.",
+    "academic": "Academic writing style with arguments, evidence, and citations when present.",
+    "tutorial": "Step-by-step tutorial format with key actions and examples.",
+    "meeting": "Meeting minutes with agenda, discussion points, decisions, and follow-ups.",
+    "xiaohongshu": "Xiaohongshu-style notes with a lighter tone and stronger highlights.",
+}
+
+STYLE_INSTRUCTIONS: dict[OutputLanguage, dict[str, str]] = {
+    "zh-CN": {
+        "minimal": "风格要求：使用精简模式，只保留每个章节最核心的要点。",
+        "detailed": "风格要求：使用详细模式，尽量完整记录内容、示例、结论和关键细节。",
+        "academic": "风格要求：使用学术表达，整理论点、论据和原文中明确出现的引用关系。",
+        "tutorial": "风格要求：使用教程模式，按步骤整理流程、方法和关键操作。",
+        "meeting": "风格要求：使用会议纪要模式，整理议题、讨论要点、决策和待办事项。",
+        "xiaohongshu": "风格要求：使用小红书风格，语气更轻松，适度使用 emoji 和高亮表达。",
+    },
+    "en": {
+        "minimal": "Style requirement: use a minimal format and keep only the core takeaways for each section.",
+        "detailed": "Style requirement: use a detailed format and preserve examples, conclusions, and supporting details.",
+        "academic": "Style requirement: use an academic tone and organize claims, evidence, and explicit references from the transcript.",
+        "tutorial": "Style requirement: use a tutorial format and present the workflow as clear step-by-step guidance.",
+        "meeting": "Style requirement: use meeting minutes format with agenda items, discussion points, decisions, and follow-ups.",
+        "xiaohongshu": "Style requirement: use a Xiaohongshu-style tone with light emoji usage and stronger highlights.",
+    },
+}
+
+SYSTEM_PROMPTS: dict[OutputLanguage, str] = {
+    "zh-CN": """你是一名专业的视频笔记助手，负责把视频转录整理成结构清晰、信息准确的 Markdown 笔记。
 
 语言要求：
-- 笔记使用 **中文** 撰写
-- 专有名词、技术术语、品牌名称和人名保留 **英文**
+- 笔记主体必须使用中文。
+- 品牌名、专有名词、代码、接口名和原本就是英文的人名可以保留英文。
 
 输出要求：
-- 仅返回最终的 Markdown 内容
-- **不要** 将输出包裹在代码块中（如 ```markdown ... ```）
-- 避免将编号标题写成有序列表格式，使用 `## 1. 标题` 的形式
-- 视频中提及的数学公式使用 LaTeX 语法
+- 只返回最终 Markdown，不要包裹在代码块中。
+- 不要把章节标题写成有序列表，使用标准 Markdown 标题层级。
+- 数学公式使用 LaTeX 语法。
 
-重要原则：
-1. **严格忠于原文**：只基于视频转录内容进行整理，禁止添加转录中完全没有的信息（如未提及的背景知识、术语解释等）
-2. **允许的整理方式**：可以重新组织语言、分段、加小标题、使用列表 - 这些是笔记的正常整理手段
-3. **标注补充内容**：只有当转录中完全没有相关内容，需要你额外补充时才标注"（笔记）"
-4. **保留原意**：即使是转录中的口语表达，也要尽量保持原意，不要过度总结或演绎
-5. **去除无关内容**：省略广告、填充词、问候语
-6. **完整信息**：记录相关细节、事实、示例、结论、建议
-7. **可读布局**：使用项目符号和短段落
-8. **结构化**：使用合理的标题层级组织内容
-9. **截图标记（重要）**：你必须在笔记的**每个主要章节**中选择一个代表性时间点添加截图标记。使用格式 `[[Screenshot:MM:SS]]`。
-   - 例如：`[[Screenshot:02:35]]` 表示在 2 分 35 秒时截取视频画面
-   - 每个章节至少添加一个截图标记
-   - 选择能展示该章节核心内容的画面时间点
-   - 如果视频很短（少于3分钟），至少添加 2-3 个截图"""
+整理原则：
+1. 严格基于转录内容，不要补充转录中没有明确出现的事实。
+2. 可以重组语序、分段、添加小标题和列表，但不要改变原意。
+3. 去掉寒暄、口头禅、重复和明显无关内容。
+4. 保留关键事实、例子、步骤、结论和建议。
+5. 每个主要章节都放一个截图标记，格式为 [[Screenshot:MM:SS]]。
+6. 如果视频很短，至少放 2 到 3 个截图标记。""",
+    "en": """You are a professional video note assistant. Convert raw video transcripts into clear, accurate Markdown notes.
 
+Language requirements:
+- The note body must be written in English.
+- Keep brand names, proper nouns, code, API names, and names that are already in another language when appropriate.
 
-# ==================== 用户 Prompt 模板 ====================
+Output requirements:
+- Return only the final Markdown content. Do not wrap it in a code block.
+- Do not format section headings as numbered lists; use normal Markdown heading levels.
+- Use LaTeX syntax for math expressions.
 
-USER_PROMPT_TEMPLATE = """视频标题：{title}
+Editing principles:
+1. Stay faithful to the transcript and do not invent facts that are not explicitly present.
+2. You may reorganize sentences, paragraphs, headings, and lists, but do not change the meaning.
+3. Remove greetings, filler words, repetition, and obviously irrelevant content.
+4. Preserve important facts, examples, steps, conclusions, and recommendations.
+5. Add one screenshot marker to every major section using [[Screenshot:MM:SS]].
+6. If the video is short, include at least 2 to 3 screenshot markers.""",
+}
+
+USER_PROMPT_TEMPLATES: dict[OutputLanguage, str] = {
+    "zh-CN": """视频标题：{title}
 
 视频分段转录（格式：时间 - 内容）：
 ---
 {segment_text}
 ---
 
-请根据上述转录内容，生成一份结构化的视频笔记。
-在笔记末尾加入 **## AI 总结** 章节，用 3-5 句话概括视频核心内容。
+请根据上面的转录内容生成一份结构化视频笔记。
+请在笔记末尾增加 **## AI 总结** 章节，用 3 到 5 句话概括视频核心内容。
 
 {style_instruction}
-{extras_instruction}"""
+{extras_instruction}""",
+    "en": """Video title: {title}
 
+Segmented transcript (format: timestamp - content):
+---
+{segment_text}
+---
 
-# ==================== 笔记风格映射 ====================
+Please generate a structured video note from the transcript above.
+Add a **## AI Summary** section at the end with 3 to 5 sentences summarizing the core ideas.
 
-STYLE_MAP: dict[str, str] = {
-    "minimal": "风格要求：**精简模式** — 仅记录最核心的要点，每个章节不超过 3 条。",
-
-    "detailed": "风格要求：**详细模式** — 完整记录视频内容，包含具体细节、示例和数据。",
-
-    "academic": "风格要求：**学术模式** — 使用学术写作风格，包含论点、论据和引用格式。",
-
-    "tutorial": "风格要求：**教程模式** — 按步骤详细记录操作过程，包含关键代码和截图位置。",
-
-    "meeting": "风格要求：**会议纪要** — 包含议题、讨论要点、决议和待办事项。",
-
-    "xiaohongshu": (
-        "风格要求：**小红书风格** — 使用 emoji 表情和轻松语气，加入吸引人的标题，"
-        "重点使用加粗和高亮，适当使用感叹号增强表达力。"
-    ),
+{style_instruction}
+{extras_instruction}""",
 }
+
+
+def normalize_output_language(output_language: str | None) -> OutputLanguage:
+    if output_language == "en":
+        return "en"
+    return DEFAULT_OUTPUT_LANGUAGE
+
+
+def build_system_prompt(output_language: str | None = None) -> str:
+    language = normalize_output_language(output_language)
+    return SYSTEM_PROMPTS[language]
 
 
 def build_user_prompt(
@@ -74,20 +115,18 @@ def build_user_prompt(
     segment_text: str,
     style: str = "detailed",
     extras: str | None = None,
+    output_language: str | None = None,
 ) -> str:
-    """
-    组装最终的用户 prompt
+    language = normalize_output_language(output_language)
+    style_instruction = STYLE_INSTRUCTIONS[language].get(style, STYLE_INSTRUCTIONS[language]["detailed"])
+    if extras:
+        extras_instruction = (
+            f"额外要求：{extras}" if language == "zh-CN" else f"Additional requirements: {extras}"
+        )
+    else:
+        extras_instruction = ""
 
-    :param title: 视频标题
-    :param segment_text: 格式化后的转录文本
-    :param style: 笔记风格
-    :param extras: 用户自定义额外提示
-    :return: 完整的用户 prompt
-    """
-    style_instruction = STYLE_MAP.get(style, STYLE_MAP["detailed"])
-    extras_instruction = f"\n额外要求：{extras}" if extras else ""
-
-    return USER_PROMPT_TEMPLATE.format(
+    return USER_PROMPT_TEMPLATES[language].format(
         title=title,
         segment_text=segment_text,
         style_instruction=style_instruction,

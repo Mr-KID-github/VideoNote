@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Wand2 } from 'lucide-react'
 import { FileUploader } from '../components/NoteGenerator/FileUploader'
 import { GenerateProgress } from '../components/NoteGenerator/GenerateProgress'
+import { useI18n } from '../lib/i18n'
 import { apiJson } from '../lib/api'
 import { useModelProfileStore } from '../stores/modelProfileStore'
 import { useNoteGenerationStore } from '../stores/noteGenerationStore'
@@ -23,6 +24,7 @@ export function NoteGenerator() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [, setTaskId] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  const { copy, language } = useI18n()
 
   const {
     status,
@@ -61,7 +63,7 @@ export function NoteGenerator() {
           }
 
           setStatus('failed')
-          setError('Note was generated but could not be saved to Supabase')
+          setError(copy.generator.saveFailed)
         } else if (data.status === 'failed') {
           clearInterval(pollRef.current!)
           setStatus('failed')
@@ -92,7 +94,7 @@ export function NoteGenerator() {
 
     try {
       if (selectedFile) {
-        throw new Error('Browser mode does not support direct local file upload yet. Use a video URL for now.')
+        throw new Error(copy.generator.browserOnlyError)
       }
 
       setCurrentStep('downloading')
@@ -103,6 +105,7 @@ export function NoteGenerator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           video_url: videoUrl,
+          output_language: language,
           model_profile_id: selectedProfileId || undefined,
         }),
       })
@@ -114,7 +117,7 @@ export function NoteGenerator() {
       pollTaskStatus(data.task_id)
     } catch (generationError) {
       setStatus('failed')
-      setError(generationError instanceof Error ? generationError.message : 'Unknown error')
+      setError(generationError instanceof Error ? generationError.message : copy.generator.unknownError)
     }
   }
 
@@ -136,7 +139,7 @@ export function NoteGenerator() {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-2xl font-bold">Generate Note</h2>
+        <h2 className="text-2xl font-bold">{copy.generator.title}</h2>
       </div>
 
       <div className="space-y-6">
@@ -148,13 +151,13 @@ export function NoteGenerator() {
         />
 
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
-          <label className="block text-sm font-medium mb-2">Model profile for this run</label>
+          <label className="block text-sm font-medium mb-2">{copy.generator.modelProfileLabel}</label>
           <select
             value={selectedProfileId}
             onChange={(event) => selectProfile(event.target.value)}
             className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
           >
-            <option value="">System default model</option>
+            <option value="">{copy.generator.systemDefaultModel}</option>
             {profiles.map((profile) => (
               <option key={profile.id} value={profile.id}>
                 {profile.name} / {profile.modelName}
@@ -163,12 +166,12 @@ export function NoteGenerator() {
             ))}
           </select>
           <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            Active model:
+            {copy.generator.activeModelPrefix}
             {selectedProfile
-              ? ` ${selectedProfile.name} / ${selectedProfile.modelName}`
+              ? copy.generator.activeModelSelected(selectedProfile.name, selectedProfile.modelName)
               : defaultProfile
-                ? ` your default profile ${defaultProfile.name} / ${defaultProfile.modelName}`
-                : ' backend .env default'}
+                ? copy.generator.activeModelDefault(defaultProfile.name, defaultProfile.modelName)
+                : copy.generator.activeModelBackend}
           </p>
         </div>
 
@@ -178,7 +181,7 @@ export function NoteGenerator() {
           className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-primary-light dark:bg-primary-dark text-white font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Wand2 className="w-5 h-5" />
-          {status === 'idle' ? 'Start generation' : 'Generating...'}
+          {status === 'idle' ? copy.generator.start : copy.generator.generating}
         </button>
 
         <GenerateProgress

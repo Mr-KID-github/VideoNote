@@ -38,6 +38,11 @@ class VideoNoteMCP:
                             "type": "string",
                             "description": "Extra note-generation instructions.",
                         },
+                        "output_language": {
+                            "type": "string",
+                            "description": "Output note language.",
+                            "enum": ["zh-CN", "en"],
+                        },
                     },
                     "required": ["video_url"],
                 },
@@ -52,7 +57,13 @@ class VideoNoteMCP:
             },
         ]
 
-    def generate_note(self, video_url: str, style: str = "detailed", extras: str | None = None) -> dict:
+    def generate_note(
+        self,
+        video_url: str,
+        style: str = "detailed",
+        extras: str | None = None,
+        output_language: str | None = None,
+    ) -> dict:
         if not video_url:
             return {"success": False, "error": "Missing required argument: video_url"}
 
@@ -63,6 +74,7 @@ class VideoNoteMCP:
                 task_id=task_id,
                 style=style,
                 extras=extras,
+                output_language=output_language,
             )
             return {
                 "success": True,
@@ -106,6 +118,7 @@ def handle_jsonrpc(request: dict) -> dict:
                 video_url=arguments.get("video_url"),
                 style=arguments.get("style", "detailed"),
                 extras=arguments.get("extras"),
+                output_language=arguments.get("output_language"),
             )
         elif tool_name == "list_note_styles":
             result = SERVER.list_styles()

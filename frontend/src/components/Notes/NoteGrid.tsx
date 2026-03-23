@@ -1,4 +1,5 @@
 import { FileText } from 'lucide-react'
+import { useI18n } from '../../lib/i18n'
 import type { NoteRecord } from '../../stores/noteLibraryStore'
 
 interface NoteGridProps {
@@ -10,10 +11,12 @@ interface NoteGridProps {
 }
 
 export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen }: NoteGridProps) {
+  const { copy, formatDate } = useI18n()
+
   if (loading) {
     return (
       <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020] p-6">
-        Loading notes...
+        {copy.common.loading}
       </div>
     )
   }
@@ -39,10 +42,10 @@ export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen
         >
           <h3 className="font-semibold">{note.title}</h3>
           <p className="mt-3 line-clamp-4 text-sm text-gray-500 dark:text-gray-400">
-            {note.content || 'No content yet.'}
+            {note.content || copy.notes.noContent}
           </p>
           <p className="mt-4 text-xs text-gray-400">
-            {new Date(note.updatedAt || note.createdAt).toLocaleDateString('zh-CN')}
+            {formatDate(note.updatedAt || note.createdAt)}
           </p>
         </button>
       ))}

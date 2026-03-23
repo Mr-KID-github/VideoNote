@@ -49,13 +49,26 @@ class FakeTranscriptionService:
 
 
 class FakeSummarizer:
-    def summarize(self, title, segments, style="detailed", extras=None):
+    def __init__(self):
+        self.calls: list[dict] = []
+
+    def summarize(self, title, segments, style="detailed", extras=None, output_language="zh-CN"):
+        self.calls.append(
+            {
+                "title": title,
+                "segments": segments,
+                "style": style,
+                "extras": extras,
+                "output_language": output_language,
+            }
+        )
         return f"# {title}\n\n{segments[0].text}\n\n[[Screenshot:00:01]]"
 
 
 class FakeLLMService:
     def __init__(self):
         self.calls: list[dict] = []
+        self.summarizer = FakeSummarizer()
 
     def resolve_config(self, **kwargs):
         class Config:
@@ -65,7 +78,7 @@ class FakeLLMService:
 
     def create_summarizer(self, **kwargs):
         self.calls.append(kwargs)
-        return FakeSummarizer()
+        return self.summarizer
 
 
 class FakeScreenshotService:
@@ -101,11 +114,13 @@ class NoteServiceTest(unittest.TestCase):
                 video_url="https://example.com/video",
                 task_id="task-1",
                 style="detailed",
+                output_language="en",
             )
 
             self.assertEqual(len(downloader.download_calls), 1)
             self.assertEqual(len(transcription_service.calls), 1)
             self.assertEqual(len(llm_service.calls), 1)
+            self.assertEqual(llm_service.summarizer.calls[0]["output_language"], "en")
             self.assertEqual(len(screenshot_service.calls), 1)
             self.assertTrue(result.output_dir)
             self.assertIn("![Screenshot 00:01]", result.markdown)

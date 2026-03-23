@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
 
 export function Login() {
@@ -12,6 +13,7 @@ export function Login() {
   const [loading, setLoading] = useState(false)
 
   const { signIn, signUp } = useAuthStore()
+  const { copy } = useI18n()
   const navigate = useNavigate()
 
   const handleSubmit = async (event: React.FormEvent) => {
@@ -48,7 +50,7 @@ export function Login() {
       return
     }
 
-    setError('Account created. Sign in to continue.')
+    setError(copy.login.accountCreated)
     setIsLogin(true)
   }
 
@@ -57,16 +59,16 @@ export function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">VideoNote</h1>
-          <p className="text-gray-600 dark:text-gray-400">AI note assistant for video workflows.</p>
+          <p className="text-gray-600 dark:text-gray-400">{copy.login.subtitle}</p>
         </div>
 
         <div className="bg-white dark:bg-[#202020] rounded-2xl shadow-lg p-8">
-          <h2 className="text-xl font-semibold mb-6">{isLogin ? 'Sign in' : 'Sign up'}</h2>
+          <h2 className="text-xl font-semibold mb-6">{isLogin ? copy.login.signIn : copy.login.signUp}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Email
+                {copy.login.email}
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -75,7 +77,7 @@ export function Login() {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
-                  placeholder="your@email.com"
+                  placeholder={copy.login.emailPlaceholder}
                   required
                 />
               </div>
@@ -83,7 +85,7 @@ export function Login() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                Password
+                {copy.login.password}
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
@@ -92,7 +94,7 @@ export function Login() {
                   value={password}
                   onChange={(event) => setPassword(event.target.value)}
                   className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
-                  placeholder="At least 6 characters"
+                  placeholder={copy.login.passwordPlaceholder}
                   required
                   minLength={6}
                 />
@@ -113,12 +115,12 @@ export function Login() {
               disabled={loading}
               className="w-full py-3 px-4 bg-primary-light dark:bg-primary-dark text-white font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {loading ? 'Working...' : isLogin ? 'Sign in' : 'Sign up'}
+              {loading ? copy.login.working : isLogin ? copy.login.signIn : copy.login.signUp}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            {isLogin ? "Don't have an account?" : 'Already have an account?'}
+            {isLogin ? copy.login.noAccount : copy.login.hasAccount}
             <button
               onClick={() => {
                 setIsLogin(!isLogin)
@@ -126,7 +128,7 @@ export function Login() {
               }}
               className="ml-1 text-primary-light dark:text-primary-dark hover:underline"
             >
-              {isLogin ? 'Create account' : 'Back to sign in'}
+              {isLogin ? copy.login.createAccount : copy.login.backToSignIn}
             </button>
           </p>
         </div>

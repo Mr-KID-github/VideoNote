@@ -1,5 +1,6 @@
 import clsx from 'clsx'
 import { Bell, Bot, Palette, Shield, User, type LucideIcon } from 'lucide-react'
+import { useI18n } from '../../lib/i18n'
 
 export type SettingsTab = 'profile' | 'models' | 'team' | 'appearance' | 'notifications'
 
@@ -9,20 +10,21 @@ type TabConfig = {
   icon: LucideIcon
 }
 
-const tabs: TabConfig[] = [
-  { key: 'profile', label: 'Profile', icon: User },
-  { key: 'models', label: 'Models', icon: Bot },
-  { key: 'team', label: 'Team', icon: Shield },
-  { key: 'appearance', label: 'Appearance', icon: Palette },
-  { key: 'notifications', label: 'Notifications', icon: Bell },
-]
-
 interface SettingsNavProps {
   activeTab: SettingsTab
   onChange: (tab: SettingsTab) => void
 }
 
 export function SettingsNav({ activeTab, onChange }: SettingsNavProps) {
+  const { copy } = useI18n()
+  const tabs: TabConfig[] = [
+    { key: 'profile', label: copy.settings.profile, icon: User },
+    { key: 'models', label: copy.settings.models, icon: Bot },
+    { key: 'team', label: copy.settings.team, icon: Shield },
+    { key: 'appearance', label: copy.settings.appearance, icon: Palette },
+    { key: 'notifications', label: copy.settings.notifications, icon: Bell },
+  ]
+
   return (
     <nav className="w-52 space-y-1">
       {tabs.map((tab) => (

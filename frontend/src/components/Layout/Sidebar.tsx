@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
+import { useI18n } from '../../lib/i18n'
 
 interface FolderItem {
   id: string
@@ -14,6 +15,7 @@ export function Sidebar() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
   const location = useLocation()
+  const { copy } = useI18n()
 
   const toggleFolder = (id: string) => {
     setExpandedFolders((previous) => {
@@ -25,10 +27,10 @@ export function Sidebar() {
   }
 
   const navItems = [
-    { path: '/', icon: Home, label: 'Home' },
-    { path: '/notes', icon: FileText, label: 'My notes' },
-    { path: '/team', icon: Users, label: 'Team' },
-    { path: '/settings', icon: Settings, label: 'Settings' },
+    { path: '/', icon: Home, label: copy.sidebar.home },
+    { path: '/notes', icon: FileText, label: copy.sidebar.notes },
+    { path: '/team', icon: Users, label: copy.sidebar.team },
+    { path: '/settings', icon: Settings, label: copy.sidebar.settings },
   ]
 
   return (
@@ -53,11 +55,11 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-auto p-2">
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Personal workspace</span>
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{copy.sidebar.workspace}</span>
           <button
             onClick={() => {}}
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-            title="Create folder"
+            title={copy.sidebar.createFolder}
           >
             <Plus className="w-4 h-4 text-gray-500" />
           </button>
@@ -65,7 +67,7 @@ export function Sidebar() {
 
         <div className="space-y-0.5">
           {folders.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-400">No folders yet.</p>
+            <p className="px-3 py-2 text-xs text-gray-400">{copy.sidebar.noFolders}</p>
           ) : (
             folders.map((folder) => (
               <FolderItemComponent

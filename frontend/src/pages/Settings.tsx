@@ -6,6 +6,7 @@ import { NotificationSettingsPanel } from '../components/Settings/NotificationSe
 import { PlaceholderSettingsPanel } from '../components/Settings/PlaceholderSettingsPanel'
 import { ProfileSettingsPanel } from '../components/Settings/ProfileSettingsPanel'
 import { SettingsNav, type SettingsTab } from '../components/Settings/SettingsNav'
+import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
 import { useThemeStore } from '../stores/themeStore'
 
@@ -13,10 +14,11 @@ export function Settings() {
   const [activeTab, setActiveTab] = useState<SettingsTab>('profile')
   const { user } = useAuthStore()
   const { theme, setTheme } = useThemeStore()
+  const { copy, language, setLanguage } = useI18n()
 
   return (
     <div className="max-w-5xl mx-auto p-8">
-      <h2 className="text-2xl font-bold mb-6">Settings</h2>
+      <h2 className="text-2xl font-bold mb-6">{copy.settings.title}</h2>
 
       <div className="flex gap-8">
         <SettingsNav activeTab={activeTab} onChange={setActiveTab} />
@@ -27,11 +29,18 @@ export function Settings() {
           {activeTab === 'team' && (
             <PlaceholderSettingsPanel
               icon={Shield}
-              title="Team"
-              body="Team-scoped model sharing is intentionally out of scope for v1."
+              title={copy.settings.team}
+              body={copy.settings.teamBody}
             />
           )}
-          {activeTab === 'appearance' && <AppearanceSettingsPanel theme={theme} onThemeChange={setTheme} />}
+          {activeTab === 'appearance' && (
+            <AppearanceSettingsPanel
+              theme={theme}
+              language={language}
+              onThemeChange={setTheme}
+              onLanguageChange={setLanguage}
+            />
+          )}
           {activeTab === 'notifications' && <NotificationSettingsPanel />}
         </div>
       </div>

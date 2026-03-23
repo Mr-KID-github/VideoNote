@@ -9,7 +9,7 @@ from openai import OpenAI
 
 from app.config import settings
 from app.llm.base import LLMSummarizer
-from app.llm.prompts import SYSTEM_PROMPT, build_user_prompt
+from app.llm.prompts import build_system_prompt, build_user_prompt
 from app.models.transcript import TranscriptSegment
 
 logger = logging.getLogger(__name__)
@@ -33,12 +33,14 @@ class _BasePromptLLM(LLMSummarizer):
         segments: List[TranscriptSegment],
         style: str,
         extras: str | None,
+        output_language: str,
     ) -> str:
         return build_user_prompt(
             title=title,
             segment_text=self._build_segment_text(segments),
             style=style,
             extras=extras,
+            output_language=output_language,
         )
 
 
@@ -61,12 +63,13 @@ class OpenAILLM(_BasePromptLLM):
         segments: List[TranscriptSegment],
         style: str = "detailed",
         extras: str | None = None,
+        output_language: str = "zh-CN",
     ) -> str:
-        user_prompt = self._build_user_prompt(title, segments, style, extras)
+        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
+                {"role": "system", "content": build_system_prompt(output_language)},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
@@ -103,10 +106,11 @@ class AnthropicLLM(_BasePromptLLM):
         segments: List[TranscriptSegment],
         style: str = "detailed",
         extras: str | None = None,
+        output_language: str = "zh-CN",
     ) -> str:
         import httpx
 
-        user_prompt = self._build_user_prompt(title, segments, style, extras)
+        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
         response = httpx.post(
             self._messages_url(),
             headers={
@@ -117,7 +121,7 @@ class AnthropicLLM(_BasePromptLLM):
             json={
                 "model": self.model,
                 "max_tokens": 8192,
-                "system": SYSTEM_PROMPT,
+                "system": build_system_prompt(output_language),
                 "messages": [{"role": "user", "content": [{"type": "text", "text": user_prompt}]}],
                 "temperature": self.temperature,
             },
@@ -165,16 +169,17 @@ class AzureOpenAILLM(_BasePromptLLM):
         segments: List[TranscriptSegment],
         style: str = "detailed",
         extras: str | None = None,
+        output_language: str = "zh-CN",
     ) -> str:
         import httpx
 
-        user_prompt = self._build_user_prompt(title, segments, style, extras)
+        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
         response = httpx.post(
             self._chat_url(),
             headers={"Content-Type": "application/json", "api-key": self.api_key},
             json={
                 "messages": [
-                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "system", "content": build_system_prompt(output_language)},
                     {"role": "user", "content": user_prompt},
                 ],
                 "max_tokens": 8192,

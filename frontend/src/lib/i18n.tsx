@@ -1,0 +1,398 @@
+import { createContext, useContext, useEffect, useMemo, type ReactNode } from 'react'
+import { useAuthStore } from '../stores/authStore'
+import { type LanguageCode, useLanguageStore } from '../stores/languageStore'
+
+const messages = {
+  en: {
+    locale: 'en-US',
+    common: {
+      loading: 'Loading...',
+      save: 'Save',
+      edit: 'Edit',
+      preview: 'Preview',
+      export: 'Export',
+      share: 'Share',
+      reset: 'Reset',
+      new: 'New',
+    },
+    theme: {
+      title: 'Theme',
+      light: 'Light',
+      dark: 'Dark',
+      system: 'System',
+      toggleTitle: (label: string) => `Theme: ${label}`,
+    },
+    language: {
+      title: 'Language',
+      english: 'English',
+      chinese: 'Chinese (Simplified)',
+    },
+    header: {
+      searchPlaceholder: 'Search notes...',
+      newButton: 'New',
+      signOut: 'Sign out',
+    },
+    sidebar: {
+      home: 'Home',
+      notes: 'My notes',
+      team: 'Team',
+      settings: 'Settings',
+      workspace: 'Personal workspace',
+      createFolder: 'Create folder',
+      noFolders: 'No folders yet.',
+    },
+    login: {
+      subtitle: 'AI note assistant for video workflows.',
+      signIn: 'Sign in',
+      signUp: 'Sign up',
+      email: 'Email',
+      password: 'Password',
+      emailPlaceholder: 'your@email.com',
+      passwordPlaceholder: 'At least 6 characters',
+      working: 'Working...',
+      noAccount: "Don't have an account?",
+      hasAccount: 'Already have an account?',
+      createAccount: 'Create account',
+      backToSignIn: 'Back to sign in',
+      accountCreated: 'Account created. Sign in to continue.',
+    },
+    home: {
+      eyebrow: 'Workspace',
+      title: 'Keep your video notes in one flow.',
+      body: 'Generate from a video URL, save the result to Supabase, and continue editing in Markdown.',
+      newNote: 'New note',
+      viewLibrary: 'View library',
+      recentNotes: 'Recent notes',
+      recentNotesBody: 'Latest saved items from your personal workspace.',
+      seeAll: 'See all',
+      emptyTitle: 'No notes yet',
+      emptyBody: 'Start with a video URL and your first generated note will show up here.',
+    },
+    notes: {
+      title: 'My notes',
+      body: 'All saved notes from your current account.',
+      emptyTitle: 'Your note library is empty',
+      emptyBody: 'Generate a note or create one manually, then it will appear here.',
+      noContent: 'No content yet.',
+    },
+    noteEditor: {
+      missingId: 'Missing note id',
+      notFound: 'Note not found',
+      saveFailed: 'Failed to save note',
+      backToLibrary: 'Back to library',
+      untitled: 'Untitled note',
+      saving: 'Saving...',
+      save: 'Save',
+      export: 'Export',
+      share: 'Share',
+      editorPlaceholder: '# Start writing your note...',
+      previewEmpty: '*No content yet.*',
+    },
+    generator: {
+      title: 'Generate Note',
+      modelProfileLabel: 'Model profile for this run',
+      systemDefaultModel: 'System default model',
+      activeModelPrefix: 'Active model:',
+      activeModelSelected: (name: string, model: string) => ` ${name} / ${model}`,
+      activeModelDefault: (name: string, model: string) => ` your default profile ${name} / ${model}`,
+      activeModelBackend: ' backend .env default',
+      start: 'Start generation',
+      generating: 'Generating...',
+      browserOnlyError: 'Browser mode does not support direct local file upload yet. Use a video URL for now.',
+      saveFailed: 'Note was generated but could not be saved to Supabase',
+      unknownError: 'Unknown error',
+    },
+    fileUploader: {
+      videoUrl: 'Video URL',
+      localFile: 'Local file',
+      videoPlaceholder: 'Paste a YouTube, Bilibili, or other supported video URL...',
+      browserModeHint: 'Browser mode is currently URL-only. Local audio import can be added later as a real upload flow.',
+      dragHint: 'Drag an audio file here, or click to select one.',
+      formats: 'Supported formats: WAV, MP3, M4A, FLAC, OGG',
+      selectFile: 'Select file',
+    },
+    progress: {
+      prepareRequest: 'Prepare request',
+      downloadAudio: 'Download audio',
+      transcribeAudio: 'Transcribe audio',
+      generateNote: 'Generate note',
+      processScreenshots: 'Process screenshots',
+      completed: 'Completed',
+      failed: 'Failed',
+      preparing: 'Preparing...',
+    },
+    settings: {
+      title: 'Settings',
+      profile: 'Profile',
+      models: 'Models',
+      team: 'Team',
+      appearance: 'Appearance',
+      notifications: 'Notifications',
+      email: 'Email',
+      notSignedIn: 'Not signed in',
+      teamBody: 'Team-scoped model sharing is intentionally out of scope for v1.',
+      notificationsTitle: 'Notifications',
+      notifyFinished: 'Notify when note generation finishes',
+      notifyInvites: 'Notify when team invitations arrive',
+      emailNotifications: 'Email notifications',
+    },
+    teamPage: {
+      title: 'Team workspace is not enabled yet',
+      body: 'The codebase is now organized around a personal workflow first. Team scopes can be added later without mixing them into the core note flow.',
+    },
+    modelProfiles: {
+      title: 'Model Profiles',
+      body: 'API keys are stored only on the backend. The browser only receives masked hints.',
+      newProfile: 'New',
+      loading: 'Loading...',
+      empty: 'No model profile yet. Create one to switch providers without editing `.env`.',
+      default: 'Default',
+      inactive: 'Inactive',
+      keyPrefix: 'Key:',
+      testConnection: 'Test connection',
+      edit: 'Edit',
+      setDefault: 'Set default',
+      delete: 'Delete',
+      editTitle: 'Edit profile',
+      createTitle: 'Create profile',
+      connectionBody: 'Connection test failures do not block saving, but they are shown inline.',
+      resetForm: 'Reset form',
+      name: 'Name',
+      namePlaceholder: 'OpenAI main account',
+      provider: 'Provider',
+      baseUrl: 'Base URL',
+      model: 'Model',
+      modelPlaceholder: 'gpt-4o-mini / deepseek-chat / llama3.1',
+      apiKey: 'API Key',
+      keepCurrentKey: 'Leave blank to keep current key',
+      apiKeyEditPlaceholder: 'Only fill this to replace the stored key',
+      apiKeyCreatePlaceholder: 'Enter provider API key',
+      useAsDefault: 'Use as my default profile',
+      profileIsActive: 'Profile is active',
+      connectionSucceeded: (latencyMs: number) => `Connection succeeded in ${latencyMs} ms`,
+      connectionFailed: (message: string) => `Connection failed: ${message}`,
+      unknownError: 'unknown error',
+      saveChanges: 'Save changes',
+      createProfile: 'Create profile',
+    },
+  },
+  'zh-CN': {
+    locale: 'zh-CN',
+    common: {
+      loading: '加载中...',
+      save: '保存',
+      edit: '编辑',
+      preview: '预览',
+      export: '导出',
+      share: '分享',
+      reset: '重置',
+      new: '新建',
+    },
+    theme: {
+      title: '主题',
+      light: '浅色',
+      dark: '深色',
+      system: '跟随系统',
+      toggleTitle: (label: string) => `主题：${label}`,
+    },
+    language: {
+      title: '语言',
+      english: '英文',
+      chinese: '中文',
+    },
+    header: {
+      searchPlaceholder: '搜索笔记...',
+      newButton: '新建',
+      signOut: '退出登录',
+    },
+    sidebar: {
+      home: '首页',
+      notes: '我的笔记',
+      team: '团队',
+      settings: '设置',
+      workspace: '个人空间',
+      createFolder: '创建文件夹',
+      noFolders: '还没有文件夹。',
+    },
+    login: {
+      subtitle: '面向视频工作流的 AI 笔记助手。',
+      signIn: '登录',
+      signUp: '注册',
+      email: '邮箱',
+      password: '密码',
+      emailPlaceholder: 'your@email.com',
+      passwordPlaceholder: '至少 6 个字符',
+      working: '处理中...',
+      noAccount: '还没有账号？',
+      hasAccount: '已经有账号了？',
+      createAccount: '创建账号',
+      backToSignIn: '返回登录',
+      accountCreated: '账号已创建，请登录继续。',
+    },
+    home: {
+      eyebrow: '工作区',
+      title: '把视频笔记放在一条顺畅的工作流里。',
+      body: '从视频链接生成笔记，将结果保存到 Supabase，并继续用 Markdown 编辑。',
+      newNote: '新建笔记',
+      viewLibrary: '查看库',
+      recentNotes: '最近笔记',
+      recentNotesBody: '你个人空间里最近保存的内容。',
+      seeAll: '查看全部',
+      emptyTitle: '还没有笔记',
+      emptyBody: '从一个视频链接开始，生成的第一篇笔记会出现在这里。',
+    },
+    notes: {
+      title: '我的笔记',
+      body: '当前账号下保存的全部笔记。',
+      emptyTitle: '你的笔记库还是空的',
+      emptyBody: '先生成一篇笔记，或手动创建一篇，它就会出现在这里。',
+      noContent: '还没有内容。',
+    },
+    noteEditor: {
+      missingId: '缺少笔记 ID',
+      notFound: '没有找到这篇笔记',
+      saveFailed: '保存笔记失败',
+      backToLibrary: '返回笔记库',
+      untitled: '未命名笔记',
+      saving: '保存中...',
+      save: '保存',
+      export: '导出',
+      share: '分享',
+      editorPlaceholder: '# 从这里开始写你的笔记...',
+      previewEmpty: '*还没有内容。*',
+    },
+    generator: {
+      title: '生成笔记',
+      modelProfileLabel: '本次运行使用的模型配置',
+      systemDefaultModel: '系统默认模型',
+      activeModelPrefix: '当前模型：',
+      activeModelSelected: (name: string, model: string) => ` ${name} / ${model}`,
+      activeModelDefault: (name: string, model: string) => ` 你的默认配置 ${name} / ${model}`,
+      activeModelBackend: ' 后端 .env 默认值',
+      start: '开始生成',
+      generating: '生成中...',
+      browserOnlyError: '浏览器模式暂不支持直接上传本地文件，请先使用视频链接。',
+      saveFailed: '笔记已生成，但保存到 Supabase 失败',
+      unknownError: '未知错误',
+    },
+    fileUploader: {
+      videoUrl: '视频链接',
+      localFile: '本地文件',
+      videoPlaceholder: '粘贴 YouTube、Bilibili 或其他支持的视频链接...',
+      browserModeHint: '浏览器模式当前只支持视频链接，后续可以补真正的本地音频上传流程。',
+      dragHint: '把音频文件拖到这里，或点击选择文件。',
+      formats: '支持格式：WAV、MP3、M4A、FLAC、OGG',
+      selectFile: '选择文件',
+    },
+    progress: {
+      prepareRequest: '准备请求',
+      downloadAudio: '下载音频',
+      transcribeAudio: '转写音频',
+      generateNote: '生成笔记',
+      processScreenshots: '处理截图',
+      completed: '已完成',
+      failed: '失败',
+      preparing: '准备中...',
+    },
+    settings: {
+      title: '设置',
+      profile: '个人资料',
+      models: '模型',
+      team: '团队',
+      appearance: '外观',
+      notifications: '通知',
+      email: '邮箱',
+      notSignedIn: '未登录',
+      teamBody: '团队级模型共享暂时不在 v1 的范围内。',
+      notificationsTitle: '通知',
+      notifyFinished: '笔记生成完成时提醒我',
+      notifyInvites: '收到团队邀请时提醒我',
+      emailNotifications: '邮件通知',
+    },
+    teamPage: {
+      title: '团队工作区暂未启用',
+      body: '当前代码库先围绕个人工作流组织。后续可以再加入团队范围的能力，而不用打乱核心笔记流程。',
+    },
+    modelProfiles: {
+      title: '模型配置',
+      body: 'API Key 只保存在后端，浏览器端只会拿到脱敏提示。',
+      newProfile: '新建',
+      loading: '加载中...',
+      empty: '还没有模型配置。创建一个后，就可以不用修改 `.env` 来切换提供方。',
+      default: '默认',
+      inactive: '已停用',
+      keyPrefix: '密钥：',
+      testConnection: '测试连接',
+      edit: '编辑',
+      setDefault: '设为默认',
+      delete: '删除',
+      editTitle: '编辑配置',
+      createTitle: '创建配置',
+      connectionBody: '连接测试失败不会阻止保存，但结果会直接显示在这里。',
+      resetForm: '重置表单',
+      name: '名称',
+      namePlaceholder: 'OpenAI 主账号',
+      provider: '提供方',
+      baseUrl: 'Base URL',
+      model: '模型',
+      modelPlaceholder: 'gpt-4o-mini / deepseek-chat / llama3.1',
+      apiKey: 'API Key',
+      keepCurrentKey: '留空则保留当前密钥',
+      apiKeyEditPlaceholder: '只有在替换已存密钥时才需要填写',
+      apiKeyCreatePlaceholder: '输入提供方 API Key',
+      useAsDefault: '作为我的默认配置',
+      profileIsActive: '配置处于启用状态',
+      connectionSucceeded: (latencyMs: number) => `连接成功，耗时 ${latencyMs} ms`,
+      connectionFailed: (message: string) => `连接失败：${message}`,
+      unknownError: '未知错误',
+      saveChanges: '保存修改',
+      createProfile: '创建配置',
+    },
+  },
+} as const
+
+type Messages = (typeof messages)[LanguageCode]
+
+interface I18nContextValue {
+  language: LanguageCode
+  locale: string
+  copy: Messages
+  setLanguage: (language: LanguageCode) => Promise<void>
+  formatDate: (value: string) => string
+}
+
+const I18nContext = createContext<I18nContextValue | null>(null)
+
+export function I18nProvider({ children }: { children: ReactNode }) {
+  const { language, setLanguage, syncWithAccount } = useLanguageStore()
+  const { initialized, user } = useAuthStore()
+
+  useEffect(() => {
+    if (!initialized) {
+      return
+    }
+
+    void syncWithAccount(user?.id ?? null)
+  }, [initialized, syncWithAccount, user?.id])
+
+  const value = useMemo<I18nContextValue>(() => {
+    const copy = messages[language]
+    return {
+      language,
+      locale: copy.locale,
+      copy,
+      setLanguage,
+      formatDate: (input) => new Intl.DateTimeFormat(copy.locale).format(new Date(input)),
+    }
+  }, [language, setLanguage])
+
+  return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>
+}
+
+export function useI18n() {
+  const context = useContext(I18nContext)
+  if (!context) {
+    throw new Error('useI18n must be used inside I18nProvider')
+  }
+  return context
+}

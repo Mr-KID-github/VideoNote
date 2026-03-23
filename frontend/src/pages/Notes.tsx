@@ -1,10 +1,12 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useI18n } from '../lib/i18n'
 import { NoteGrid } from '../components/Notes/NoteGrid'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 export function Notes() {
   const navigate = useNavigate()
+  const { copy } = useI18n()
   const { notes, loading, loadNotes } = useNoteLibraryStore()
 
   useEffect(() => {
@@ -14,17 +16,17 @@ export function Notes() {
   return (
     <div className="space-y-6 p-8">
       <div>
-        <h2 className="text-2xl font-bold">My notes</h2>
+        <h2 className="text-2xl font-bold">{copy.notes.title}</h2>
         <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
-          All saved notes from your current account.
+          {copy.notes.body}
         </p>
       </div>
 
       <NoteGrid
         notes={notes}
         loading={loading}
-        emptyTitle="Your note library is empty"
-        emptyBody="Generate a note or create one manually, then it will appear here."
+        emptyTitle={copy.notes.emptyTitle}
+        emptyBody={copy.notes.emptyBody}
         onOpen={(note) => navigate(`/note/${note.id}`)}
       />
     </div>

@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import clsx from 'clsx'
 import { Plus, RotateCcw, Trash2, Wifi } from 'lucide-react'
+import { useI18n } from '../../lib/i18n'
 import { type ModelProfile, type ModelProfileDraft, type ProviderType } from '../../lib/modelProfiles'
 import { useModelProfileStore } from '../../stores/modelProfileStore'
 
@@ -39,6 +40,7 @@ const profileToDraft = (profile: ModelProfile): ModelProfileDraft => ({
 export function ModelProfileManager() {
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<ModelProfileDraft>(makeDraft)
+  const { copy } = useI18n()
 
   const {
     profiles,
@@ -105,9 +107,9 @@ export function ModelProfileManager() {
         <section className="space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold">Model Profiles</h3>
+              <h3 className="text-lg font-semibold">{copy.modelProfiles.title}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                API keys are stored only on the backend. The browser only receives masked hints.
+                {copy.modelProfiles.body}
               </p>
             </div>
             <button
@@ -115,15 +117,15 @@ export function ModelProfileManager() {
               className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
-              New
+              {copy.modelProfiles.newProfile}
             </button>
           </div>
 
           {loading ? (
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700">Loading...</div>
+            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700">{copy.modelProfiles.loading}</div>
           ) : profiles.length === 0 ? (
             <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
-              No model profile yet. Create one to switch providers without editing `.env`.
+              {copy.modelProfiles.empty}
             </div>
           ) : (
             <div className="space-y-3">
@@ -138,12 +140,12 @@ export function ModelProfileManager() {
                         <h4 className="font-medium">{profile.name}</h4>
                         {profile.isDefault && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-primary-light/10 text-primary-light dark:bg-primary-dark/10 dark:text-primary-dark">
-                            Default
+                            {copy.modelProfiles.default}
                           </span>
                         )}
                         {!profile.isActive && (
                           <span className="text-xs px-2 py-0.5 rounded-full bg-gray-200 text-gray-600 dark:bg-gray-700 dark:text-gray-300">
-                            Inactive
+                            {copy.modelProfiles.inactive}
                           </span>
                         )}
                       </div>
@@ -151,14 +153,14 @@ export function ModelProfileManager() {
                         {profile.provider} / {profile.modelName}
                       </p>
                       <p className="text-xs text-gray-400 mt-1 break-all">{profile.baseUrl}</p>
-                      <p className="text-xs text-gray-400 mt-1">Key: {profile.apiKeyHint}</p>
+                      <p className="text-xs text-gray-400 mt-1">{copy.modelProfiles.keyPrefix} {profile.apiKeyHint}</p>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <button
                         onClick={() => void testProfile(profile.id)}
                         className="p-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800"
-                        title="Test connection"
+                        title={copy.modelProfiles.testConnection}
                       >
                         <Wifi className="w-4 h-4" />
                       </button>
@@ -166,20 +168,20 @@ export function ModelProfileManager() {
                         onClick={() => startEdit(profile)}
                         className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
                       >
-                        Edit
+                        {copy.modelProfiles.edit}
                       </button>
                       {!profile.isDefault && (
                         <button
                           onClick={() => void setDefaultProfile(profile.id)}
                           className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
                         >
-                          Set default
+                          {copy.modelProfiles.setDefault}
                         </button>
                       )}
                       <button
                         onClick={() => void deleteProfile(profile.id)}
                         className="p-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-900/20"
-                        title="Delete"
+                        title={copy.modelProfiles.delete}
                       >
                         <Trash2 className="w-4 h-4" />
                       </button>
@@ -194,32 +196,32 @@ export function ModelProfileManager() {
         <section className="p-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020] space-y-4">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-semibold">{editingId ? 'Edit profile' : 'Create profile'}</h3>
+              <h3 className="text-lg font-semibold">{editingId ? copy.modelProfiles.editTitle : copy.modelProfiles.createTitle}</h3>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Connection test failures do not block saving, but they are shown inline.
+                {copy.modelProfiles.connectionBody}
               </p>
             </div>
             <button
               onClick={resetForm}
               className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-              title="Reset form"
+              title={copy.modelProfiles.resetForm}
             >
               <RotateCcw className="w-4 h-4" />
             </button>
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Name</label>
+            <label className="block text-sm font-medium mb-2">{copy.modelProfiles.name}</label>
             <input
               value={draft.name}
               onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))}
-              placeholder="OpenAI main account"
+              placeholder={copy.modelProfiles.namePlaceholder}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
             />
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Provider</label>
+            <label className="block text-sm font-medium mb-2">{copy.modelProfiles.provider}</label>
             <select
               value={draft.provider}
               onChange={(event) => handleProviderChange(event.target.value as ProviderType)}
@@ -234,7 +236,7 @@ export function ModelProfileManager() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Base URL</label>
+            <label className="block text-sm font-medium mb-2">{copy.modelProfiles.baseUrl}</label>
             <input
               value={draft.baseUrl}
               onChange={(event) => setDraft((current) => ({ ...current, baseUrl: event.target.value }))}
@@ -244,24 +246,24 @@ export function ModelProfileManager() {
           </div>
 
           <div>
-            <label className="block text-sm font-medium mb-2">Model</label>
+            <label className="block text-sm font-medium mb-2">{copy.modelProfiles.model}</label>
             <input
               value={draft.modelName}
               onChange={(event) => setDraft((current) => ({ ...current, modelName: event.target.value }))}
-              placeholder="gpt-4o-mini / deepseek-chat / llama3.1"
+              placeholder={copy.modelProfiles.modelPlaceholder}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
             />
           </div>
 
           <div>
             <label className="block text-sm font-medium mb-2">
-              API Key {editingId ? <span className="text-xs text-gray-400">Leave blank to keep current key</span> : null}
+              {copy.modelProfiles.apiKey} {editingId ? <span className="text-xs text-gray-400">{copy.modelProfiles.keepCurrentKey}</span> : null}
             </label>
             <input
               type="password"
               value={draft.apiKey}
               onChange={(event) => setDraft((current) => ({ ...current, apiKey: event.target.value }))}
-              placeholder={editingId ? 'Only fill this to replace the stored key' : 'Enter provider API key'}
+              placeholder={editingId ? copy.modelProfiles.apiKeyEditPlaceholder : copy.modelProfiles.apiKeyCreatePlaceholder}
               className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
             />
           </div>
@@ -273,7 +275,7 @@ export function ModelProfileManager() {
               onChange={(event) => setDraft((current) => ({ ...current, isDefault: event.target.checked }))}
               className="w-4 h-4"
             />
-            <span className="text-sm">Use as my default profile</span>
+            <span className="text-sm">{copy.modelProfiles.useAsDefault}</span>
           </label>
 
           <label className="flex items-center gap-3">
@@ -283,7 +285,7 @@ export function ModelProfileManager() {
               onChange={(event) => setDraft((current) => ({ ...current, isActive: event.target.checked }))}
               className="w-4 h-4"
             />
-            <span className="text-sm">Profile is active</span>
+            <span className="text-sm">{copy.modelProfiles.profileIsActive}</span>
           </label>
 
           {(error || lastTestResult) && (
@@ -297,8 +299,8 @@ export function ModelProfileManager() {
             >
               {error || (
                 lastTestResult?.ok
-                  ? `Connection succeeded in ${lastTestResult.latencyMs} ms`
-                  : `Connection failed: ${lastTestResult?.errorMessage || 'unknown error'}`
+                  ? copy.modelProfiles.connectionSucceeded(lastTestResult.latencyMs)
+                  : copy.modelProfiles.connectionFailed(lastTestResult?.errorMessage || copy.modelProfiles.unknownError)
               )}
             </div>
           )}
@@ -310,14 +312,14 @@ export function ModelProfileManager() {
               className="flex-1 inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors disabled:opacity-60"
             >
               <Wifi className="w-4 h-4" />
-              Test connection
+              {copy.modelProfiles.testConnection}
             </button>
             <button
               onClick={() => void handleSave()}
               disabled={saving || !draft.name.trim() || !draft.baseUrl.trim() || !draft.modelName.trim() || (!editingId && !draft.apiKey.trim())}
               className="flex-1 px-4 py-2.5 rounded-lg bg-primary-light dark:bg-primary-dark text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
             >
-              {editingId ? 'Save changes' : 'Create profile'}
+              {editingId ? copy.modelProfiles.saveChanges : copy.modelProfiles.createProfile}
             </button>
           </div>
         </section>

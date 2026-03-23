@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Edit3, Eye, MoreHorizontal, Save, Share2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
+import { useI18n } from '../lib/i18n'
 import { MarkdownContent } from '../components/Markdown/MarkdownContent'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
 
@@ -8,6 +9,7 @@ export function NoteEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
   const { loadNoteById, updateNote } = useNoteLibraryStore()
+  const { copy } = useI18n()
   const [isPreview, setIsPreview] = useState(false)
   const [localTitle, setLocalTitle] = useState('')
   const [content, setContent] = useState('')
@@ -20,7 +22,7 @@ export function NoteEditor() {
 
     async function loadNote() {
       if (!id) {
-        setError('Missing note id')
+        setError(copy.noteEditor.missingId)
         setLoading(false)
         return
       }
@@ -31,7 +33,7 @@ export function NoteEditor() {
       }
 
       if (!note) {
-        setError('Note not found')
+        setError(copy.noteEditor.notFound)
         setLoading(false)
         return
       }
@@ -55,9 +57,9 @@ export function NoteEditor() {
     }
 
     setSaving(true)
-    const updated = await updateNote(id, localTitle, content)
+      const updated = await updateNote(id, localTitle, content)
     if (!updated) {
-      setError('Failed to save note')
+      setError(copy.noteEditor.saveFailed)
       setSaving(false)
       return
     }
@@ -95,7 +97,7 @@ export function NoteEditor() {
           onClick={() => navigate('/notes')}
           className="rounded-lg border border-gray-200 px-4 py-2 dark:border-gray-700"
         >
-          Back to library
+          {copy.noteEditor.backToLibrary}
         </button>
       </div>
     )
@@ -115,7 +117,7 @@ export function NoteEditor() {
             type="text"
             value={localTitle}
             onChange={(event) => setLocalTitle(event.target.value)}
-            placeholder="Untitled note"
+            placeholder={copy.noteEditor.untitled}
             className="text-lg font-medium bg-transparent outline-none border-none focus:ring-0 w-64"
           />
         </div>
@@ -129,10 +131,10 @@ export function NoteEditor() {
                   ? 'bg-white dark:bg-[#202020] shadow-sm'
                   : 'text-gray-500'
               }`}
-            >
-              <Edit3 className="w-4 h-4" />
-              Edit
-            </button>
+              >
+                <Edit3 className="w-4 h-4" />
+                {copy.common.edit}
+              </button>
             <button
               onClick={() => setIsPreview(true)}
               className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
@@ -140,29 +142,29 @@ export function NoteEditor() {
                   ? 'bg-white dark:bg-[#202020] shadow-sm'
                   : 'text-gray-500'
               }`}
-            >
-              <Eye className="w-4 h-4" />
-              Preview
-            </button>
+              >
+                <Eye className="w-4 h-4" />
+                {copy.common.preview}
+              </button>
           </div>
 
           <button
             onClick={() => void handleSave()}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            title={saving ? 'Saving...' : 'Save'}
+            title={saving ? copy.noteEditor.saving : copy.noteEditor.save}
           >
             <Save className="w-5 h-5" />
           </button>
           <button
             onClick={handleExport}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Export"
+            title={copy.noteEditor.export}
           >
             <Download className="w-5 h-5" />
           </button>
           <button
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="Share"
+            title={copy.noteEditor.share}
           >
             <Share2 className="w-5 h-5" />
           </button>
@@ -186,13 +188,13 @@ export function NoteEditor() {
             value={content}
             onChange={(event) => setContent(event.target.value)}
             className="flex-1 w-full p-4 resize-none outline-none bg-white dark:bg-[#191919] font-mono text-sm"
-            placeholder="# Start writing your note..."
+            placeholder={copy.noteEditor.editorPlaceholder}
           />
         </div>
 
         <div className={`flex-1 border-l border-gray-200 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#202020] ${!isPreview ? 'hidden md:flex' : 'flex'}`}>
           <MarkdownContent
-            content={content || '*No content yet.*'}
+            content={content || copy.noteEditor.previewEmpty}
             className="prose dark:prose-invert max-w-none p-6 w-full"
           />
         </div>

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { FileAudio, Link as LinkIcon, Upload, X } from 'lucide-react'
 import clsx from 'clsx'
+import { useI18n } from '../../lib/i18n'
 
 interface FileUploaderProps {
   onVideoUrlChange: (url: string) => void
@@ -15,6 +16,7 @@ export function FileUploader({
   videoUrl,
   fileUploadEnabled = true,
 }: FileUploaderProps) {
+  const { copy } = useI18n()
   const [mode, setMode] = useState<'url' | 'file'>('url')
   const [dragActive, setDragActive] = useState(false)
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
@@ -68,7 +70,7 @@ export function FileUploader({
           )}
         >
           <LinkIcon className="w-4 h-4" />
-          Video URL
+          {copy.fileUploader.videoUrl}
         </button>
         {fileUploadEnabled ? (
           <button
@@ -81,7 +83,7 @@ export function FileUploader({
             )}
           >
             <FileAudio className="w-4 h-4" />
-            Local file
+            {copy.fileUploader.localFile}
           </button>
         ) : null}
       </div>
@@ -92,12 +94,12 @@ export function FileUploader({
             type="text"
             value={videoUrl}
             onChange={(event) => onVideoUrlChange(event.target.value)}
-            placeholder="Paste a YouTube, Bilibili, or other supported video URL..."
+            placeholder={copy.fileUploader.videoPlaceholder}
             className="w-full px-4 py-3 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
           />
           {!fileUploadEnabled ? (
             <p className="text-sm text-gray-500 dark:text-gray-400">
-              Browser mode is currently URL-only. Local audio import can be added later as a real upload flow.
+              {copy.fileUploader.browserModeHint}
             </p>
           ) : null}
         </div>
@@ -133,10 +135,10 @@ export function FileUploader({
             <>
               <Upload className="w-12 h-12 mx-auto mb-4 text-gray-400" />
               <p className="text-gray-600 dark:text-gray-400 mb-2">
-                Drag an audio file here, or click to select one.
+                {copy.fileUploader.dragHint}
               </p>
               <p className="text-sm text-gray-400">
-                Supported formats: WAV, MP3, M4A, FLAC, OGG
+                {copy.fileUploader.formats}
               </p>
               <input
                 type="file"
@@ -149,7 +151,7 @@ export function FileUploader({
                 htmlFor="file-upload"
                 className="inline-block mt-4 px-4 py-2 bg-primary-light dark:bg-primary-dark text-white rounded-lg cursor-pointer hover:opacity-90 transition-opacity"
               >
-                Select file
+                {copy.fileUploader.selectFile}
               </label>
             </>
           )}
