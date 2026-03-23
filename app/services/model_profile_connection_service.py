@@ -5,6 +5,7 @@ import httpx
 from fastapi import HTTPException
 
 from app.config import settings
+from app.llm.anthropic_compat import post_anthropic_compatible
 from app.models.model_profile import ModelProfileTestRequest, ModelProfileTestResponse
 
 logger = logging.getLogger(__name__)
@@ -63,21 +64,16 @@ class ModelProfileConnectionService:
                 response.raise_for_status()
                 ok = True
             elif payload.provider == "anthropic-compatible":
-                response = httpx.post(
-                    self._build_anthropic_url(payload.base_url),
-                    headers={
-                        "Content-Type": "application/json",
-                        "x-api-key": payload.api_key,
-                        "anthropic-version": "2023-06-01",
-                    },
-                    json={
+                response = post_anthropic_compatible(
+                    url=self._build_anthropic_url(payload.base_url),
+                    api_key=payload.api_key,
+                    json_body={
                         "model": payload.model_name,
                         "messages": [{"role": "user", "content": [{"type": "text", "text": "ping"}]}],
                         "max_tokens": 1,
                     },
                     timeout=20.0,
                 )
-                response.raise_for_status()
                 ok = True
             elif payload.provider == "azure-openai":
                 response = httpx.post(

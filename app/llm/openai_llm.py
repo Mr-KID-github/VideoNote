@@ -5,9 +5,11 @@ import logging
 from datetime import timedelta
 from typing import List
 
+import httpx
 from openai import OpenAI
 
 from app.config import settings
+from app.llm.anthropic_compat import post_anthropic_compatible
 from app.llm.base import LLMSummarizer
 from app.llm.prompts import build_system_prompt, build_user_prompt
 from app.models.transcript import TranscriptSegment
@@ -108,17 +110,11 @@ class AnthropicLLM(_BasePromptLLM):
         extras: str | None = None,
         output_language: str = "zh-CN",
     ) -> str:
-        import httpx
-
         user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
-        response = httpx.post(
-            self._messages_url(),
-            headers={
-                "Content-Type": "application/json",
-                "x-api-key": self.api_key,
-                "anthropic-version": "2023-06-01",
-            },
-            json={
+        response = post_anthropic_compatible(
+            url=self._messages_url(),
+            api_key=self.api_key,
+            json_body={
                 "model": self.model,
                 "max_tokens": 8192,
                 "system": build_system_prompt(output_language),
@@ -127,7 +123,6 @@ class AnthropicLLM(_BasePromptLLM):
             },
             timeout=300.0,
         )
-        response.raise_for_status()
         payload = response.json()
         for block in payload.get("content", []):
             if isinstance(block, dict) and block.get("type") == "text":
