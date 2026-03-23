@@ -1,46 +1,112 @@
-import { useState, useEffect } from 'react'
-import ReactMarkdown from 'react-markdown'
-import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
-import { Save, Download, Share2, MoreHorizontal, ArrowLeft, Edit3, Eye } from 'lucide-react'
+import { useEffect, useState } from 'react'
+import { ArrowLeft, Download, Edit3, Eye, MoreHorizontal, Save, Share2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useNoteStore } from '../stores/noteStore'
+import { MarkdownContent } from '../components/Markdown/MarkdownContent'
+import { useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 export function NoteEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { content, title, setContent } = useNoteStore()
+  const { loadNoteById, updateNote } = useNoteLibraryStore()
   const [isPreview, setIsPreview] = useState(false)
-  const [localTitle, setLocalTitle] = useState(title || '')
+  const [localTitle, setLocalTitle] = useState('')
+  const [content, setContent] = useState('')
+  const [loading, setLoading] = useState(true)
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState('')
 
   useEffect(() => {
-    if (id && !content) {
-      // TODO: Load note from API
-    }
-  }, [id])
+    let active = true
 
-  const handleSave = () => {
-    // TODO: Save to API
-    console.log('Saving:', { title: localTitle, content })
+    async function loadNote() {
+      if (!id) {
+        setError('Missing note id')
+        setLoading(false)
+        return
+      }
+
+      const note = await loadNoteById(id)
+      if (!active) {
+        return
+      }
+
+      if (!note) {
+        setError('Note not found')
+        setLoading(false)
+        return
+      }
+
+      setLocalTitle(note.title)
+      setContent(note.content)
+      setError('')
+      setLoading(false)
+    }
+
+    void loadNote()
+
+    return () => {
+      active = false
+    }
+  }, [id, loadNoteById])
+
+  const handleSave = async () => {
+    if (!id) {
+      return
+    }
+
+    setSaving(true)
+    const updated = await updateNote(id, localTitle, content)
+    if (!updated) {
+      setError('Failed to save note')
+      setSaving(false)
+      return
+    }
+
+    setLocalTitle(updated.title)
+    setContent(updated.content)
+    setError('')
+    setSaving(false)
   }
 
   const handleExport = () => {
     const blob = new Blob([content], { type: 'text/markdown' })
     const url = URL.createObjectURL(blob)
-    const a = document.createElement('a')
-    a.href = url
-    a.download = `${localTitle || 'note'}.md`
-    a.click()
+    const anchor = document.createElement('a')
+    anchor.href = url
+    anchor.download = `${localTitle || 'note'}.md`
+    anchor.click()
     URL.revokeObjectURL(url)
+  }
+
+  if (loading) {
+    return (
+      <div className="flex h-full items-center justify-center">
+        <div className="h-8 w-8 animate-spin rounded-full border-b-2 border-primary-light"></div>
+      </div>
+    )
+  }
+
+  if (error && !content) {
+    return (
+      <div className="flex h-full flex-col items-center justify-center gap-4 p-8 text-center">
+        <p className="text-lg font-medium">{error}</p>
+        <button
+          type="button"
+          onClick={() => navigate('/notes')}
+          className="rounded-lg border border-gray-200 px-4 py-2 dark:border-gray-700"
+        >
+          Back to library
+        </button>
+      </div>
+    )
   }
 
   return (
     <div className="h-full flex flex-col">
-      {/* 工具栏 */}
       <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <button
-            onClick={() => navigate('/')}
+            onClick={() => navigate('/notes')}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -48,8 +114,8 @@ export function NoteEditor() {
           <input
             type="text"
             value={localTitle}
-            onChange={(e) => setLocalTitle(e.target.value)}
-            placeholder="无标题笔记"
+            onChange={(event) => setLocalTitle(event.target.value)}
+            placeholder="Untitled note"
             className="text-lg font-medium bg-transparent outline-none border-none focus:ring-0 w-64"
           />
         </div>
@@ -65,7 +131,7 @@ export function NoteEditor() {
               }`}
             >
               <Edit3 className="w-4 h-4" />
-              编辑
+              Edit
             </button>
             <button
               onClick={() => setIsPreview(true)}
@@ -76,27 +142,27 @@ export function NoteEditor() {
               }`}
             >
               <Eye className="w-4 h-4" />
-              预览
+              Preview
             </button>
           </div>
 
           <button
-            onClick={handleSave}
+            onClick={() => void handleSave()}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="保存"
+            title={saving ? 'Saving...' : 'Save'}
           >
             <Save className="w-5 h-5" />
           </button>
           <button
             onClick={handleExport}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="导出"
+            title="Export"
           >
             <Download className="w-5 h-5" />
           </button>
           <button
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-            title="分享"
+            title="Share"
           >
             <Share2 className="w-5 h-5" />
           </button>
@@ -108,59 +174,27 @@ export function NoteEditor() {
         </div>
       </div>
 
-      {/* 编辑/预览区 */}
+      {error ? (
+        <div className="border-b border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900/40 dark:bg-red-900/20 dark:text-red-300">
+          {error}
+        </div>
+      ) : null}
+
       <div className="flex-1 flex overflow-hidden">
-        {/* 编辑区 */}
         <div className={`flex-1 flex flex-col ${isPreview ? 'hidden md:flex' : 'flex'}`}>
           <textarea
             value={content}
-            onChange={(e) => setContent(e.target.value)}
+            onChange={(event) => setContent(event.target.value)}
             className="flex-1 w-full p-4 resize-none outline-none bg-white dark:bg-[#191919] font-mono text-sm"
-            placeholder="# 开始编写你的笔记...
-
-## 要点1
-内容...
-
-## 要点2
-内容..."
+            placeholder="# Start writing your note..."
           />
         </div>
 
-        {/* 预览区 */}
         <div className={`flex-1 border-l border-gray-200 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#202020] ${!isPreview ? 'hidden md:flex' : 'flex'}`}>
-          <div className="prose dark:prose-invert max-w-none p-6 w-full">
-            <ReactMarkdown
-              components={{
-                code({ node, className, children, ...props }) {
-                  const match = /language-(\w+)/.exec(className || '')
-                  return match ? (
-                    <SyntaxHighlighter
-                      style={oneDark}
-                      language={match[1]}
-                      PreTag="div"
-                      className="rounded-lg"
-                    >
-                      {String(children).replace(/\n$/, '')}
-                    </SyntaxHighlighter>
-                  ) : (
-                    <code className={`${className} bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded`} {...props}>
-                      {children}
-                    </code>
-                  )
-                },
-                h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 pb-2 border-b">{children}</h1>,
-                h2: ({ children }) => <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>,
-                h3: ({ children }) => <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>,
-                p: ({ children }) => <p className="mb-3 leading-relaxed">{children}</p>,
-                ul: ({ children }) => <ul className="list-disc pl-6 mb-3">{children}</ul>,
-                ol: ({ children }) => <ol className="list-decimal pl-6 mb-3">{children}</ol>,
-                li: ({ children }) => <li className="mb-1">{children}</li>,
-                blockquote: ({ children }) => <blockquote className="border-l-4 border-primary-light dark:border-primary-dark pl-4 italic my-4">{children}</blockquote>,
-              }}
-            >
-              {content || '*暂无内容*'}
-            </ReactMarkdown>
-          </div>
+          <MarkdownContent
+            content={content || '*No content yet.*'}
+            className="prose dark:prose-invert max-w-none p-6 w-full"
+          />
         </div>
       </div>
     </div>

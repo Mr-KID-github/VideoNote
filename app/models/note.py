@@ -1,8 +1,8 @@
 """
-笔记生成相关数据模型
+Request and response models for note generation.
 """
 from dataclasses import dataclass
-from typing import List, Optional
+from typing import Optional
 
 from pydantic import BaseModel
 
@@ -10,21 +10,29 @@ from app.models.audio import AudioDownloadResult
 from app.models.transcript import TranscriptResult
 
 
-# -------- API 请求 / 响应模型 (Pydantic) --------
-
 class NoteRequest(BaseModel):
-    """生成笔记的请求体"""
-    video_url: str                                     # 视频链接
-    platform: str = "auto"                             # 平台 (youtube / bilibili / auto)
-    style: Optional[str] = "detailed"                  # 笔记风格
-    extras: Optional[str] = None                       # 额外提示词
-    model_name: Optional[str] = None                   # 覆盖默认 LLM 模型
-    api_key: Optional[str] = None                      # 覆盖默认 API Key
-    base_url: Optional[str] = None                     # 覆盖默认 Base URL
+    video_url: str
+    platform: str = "auto"
+    style: Optional[str] = "detailed"
+    extras: Optional[str] = None
+    model_profile_id: Optional[str] = None
+    model_name: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+
+
+class LocalFileRequest(BaseModel):
+    file_path: str
+    title: Optional[str] = None
+    style: Optional[str] = "meeting"
+    extras: Optional[str] = None
+    model_profile_id: Optional[str] = None
+    model_name: Optional[str] = None
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
 
 
 class NoteResponse(BaseModel):
-    """同步返回的笔记结果"""
     task_id: str
     title: str
     markdown: str
@@ -34,18 +42,15 @@ class NoteResponse(BaseModel):
 
 
 class TaskStatusResponse(BaseModel):
-    """异步任务状态"""
     task_id: str
-    status: str          # pending / downloading / transcribing / summarizing / success / failed
+    status: str
     message: str = ""
     result: Optional[NoteResponse] = None
 
 
-# -------- 内部数据模型 (dataclass) --------
-
 @dataclass
 class NoteResult:
-    """Pipeline 最终产物"""
     markdown: str
     transcript: TranscriptResult
     audio_meta: AudioDownloadResult
+    output_dir: str | None = None

@@ -1,20 +1,86 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { ArrowLeft, Wand2 } from 'lucide-react'
 import { FileUploader } from '../components/NoteGenerator/FileUploader'
 import { GenerateProgress } from '../components/NoteGenerator/GenerateProgress'
-import { useNoteStore } from '../stores/noteStore'
-import { Wand2, ArrowLeft } from 'lucide-react'
+import { apiJson } from '../lib/api'
+import { useModelProfileStore } from '../stores/modelProfileStore'
+import { useNoteGenerationStore } from '../stores/noteGenerationStore'
+import { useNoteLibraryStore } from '../stores/noteLibraryStore'
 
-const API_BASE = import.meta.env.VITE_API_BASE_URL || 'http://localhost:8900'
+type TaskResponse = { task_id: string }
+type TaskStatusResponse = {
+  status: string
+  message: string
+  result?: {
+    title: string
+    markdown: string
+  }
+}
 
 export function NoteGenerator() {
   const [videoUrl, setVideoUrl] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
   const [, setTaskId] = useState('')
-  const pollRef = useRef<NodeJS.Timeout | null>(null)
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
 
-  const { status, progress, currentStep, error, setStatus, setProgress, setCurrentStep, setError, setTitle, setContent, reset } = useNoteStore()
+  const {
+    status,
+    progress,
+    currentStep,
+    error,
+    setStatus,
+    setProgress,
+    setCurrentStep,
+    setError,
+    reset,
+  } = useNoteGenerationStore()
+  const { saveNote } = useNoteLibraryStore()
+  const { profiles, selectedProfileId, selectProfile, loadProfiles } = useModelProfileStore()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    void loadProfiles()
+  }, [loadProfiles])
+
+  const pollTaskStatus = (id: string) => {
+    pollRef.current = setInterval(async () => {
+      try {
+        const data = await apiJson<TaskStatusResponse>(`/api/task/${id}`)
+
+        if (data.status === 'success') {
+          clearInterval(pollRef.current!)
+          setProgress(100)
+          setCurrentStep('success')
+          setStatus('success')
+
+          const note = await saveNote(data.result?.title || '', data.result?.markdown || '', videoUrl)
+          if (note) {
+            navigate(`/note/${note.id}`)
+            return
+          }
+
+          setStatus('failed')
+          setError('Note was generated but could not be saved to Supabase')
+        } else if (data.status === 'failed') {
+          clearInterval(pollRef.current!)
+          setStatus('failed')
+          setError(data.message || 'Generation failed')
+        } else if (data.status === 'transcribing') {
+          setCurrentStep('transcribing')
+          setProgress(50)
+        } else if (data.status === 'summarizing') {
+          setCurrentStep('summarizing')
+          setProgress(80)
+        } else if (data.status === 'screenshots') {
+          setCurrentStep('screenshots')
+          setProgress(90)
+        }
+      } catch (pollError) {
+        console.error('Failed to poll task status:', pollError)
+      }
+    }, 2000)
+  }
 
   const handleGenerate = async () => {
     if (!videoUrl && !selectedFile) return
@@ -26,112 +92,40 @@ export function NoteGenerator() {
 
     try {
       if (selectedFile) {
-        // 本地文件模式 - 使用 FormData
-        setCurrentStep('uploading')
-        setProgress(20)
-
-        const formData = new FormData()
-        formData.append('file', selectedFile)
-        formData.append('title', selectedFile.name.replace(/\.[^/.]+$/, ''))
-        formData.append('style', 'meeting')
-
-        setCurrentStep('processing')
-        setProgress(40)
-
-        const response = await fetch(`${API_BASE}/api/generate_from_file_sync`, {
-          method: 'POST',
-          body: formData,
-        })
-
-        setProgress(80)
-        setCurrentStep('summarizing')
-
-        if (!response.ok) {
-          const err = await response.json()
-          throw new Error(err.detail || '生成失败')
-        }
-
-        const data = await response.json()
-        setTitle(data.title || selectedFile.name)
-        setContent(data.markdown || '')
-        setProgress(100)
-        setStatus('success')
-
-        // 跳转到笔记编辑页面
-        setTimeout(() => {
-          navigate('/')
-        }, 1500)
-      } else {
-        // URL 模式 - 异步任务
-        setCurrentStep('downloading')
-        setProgress(20)
-
-        const response = await fetch(`${API_BASE}/api/generate`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ video_url: videoUrl }),
-        })
-
-        const data = await response.json()
-        setTaskId(data.task_id)
-        setStatus('processing')
-        setCurrentStep('transcribing')
-        setProgress(30)
-
-        // 轮询任务状态
-        pollTaskStatus(data.task_id)
+        throw new Error('Browser mode does not support direct local file upload yet. Use a video URL for now.')
       }
-    } catch (err) {
+
+      setCurrentStep('downloading')
+      setProgress(20)
+
+      const data = await apiJson<TaskResponse>('/api/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          video_url: videoUrl,
+          model_profile_id: selectedProfileId || undefined,
+        }),
+      })
+
+      setTaskId(data.task_id)
+      setStatus('processing')
+      setCurrentStep('transcribing')
+      setProgress(30)
+      pollTaskStatus(data.task_id)
+    } catch (generationError) {
       setStatus('failed')
-      setError(err instanceof Error ? err.message : '未知错误')
+      setError(generationError instanceof Error ? generationError.message : 'Unknown error')
     }
   }
 
-  const pollTaskStatus = async (id: string) => {
-    pollRef.current = setInterval(async () => {
-      try {
-        const response = await fetch(`${API_BASE}/api/task/${id}`)
-        const data = await response.json()
-
-        if (data.status === 'success') {
-          clearInterval(pollRef.current!)
-          setProgress(100)
-          setCurrentStep('success')
-          setTitle(data.result?.title || '')
-          setContent(data.result?.markdown || '')
-          setStatus('success')
-
-          // 跳转到笔记页面
-          setTimeout(() => {
-            navigate('/')
-          }, 1500)
-        } else if (data.status === 'failed') {
-          clearInterval(pollRef.current!)
-          setStatus('failed')
-          setError(data.message || '处理失败')
-        } else {
-          // 更新进度
-          if (data.status === 'transcribing') {
-            setCurrentStep('transcribing')
-            setProgress(50)
-          } else if (data.status === 'summarizing') {
-            setCurrentStep('summarizing')
-            setProgress(80)
-          }
-        }
-      } catch (err) {
-        console.error('轮询错误:', err)
-      }
-    }, 2000)
-  }
-
-  useEffect(() => {
-    return () => {
-      if (pollRef.current) {
-        clearInterval(pollRef.current)
-      }
+  useEffect(() => () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current)
     }
   }, [])
+
+  const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
+  const defaultProfile = profiles.find((profile) => profile.isDefault)
 
   return (
     <div className="max-w-2xl mx-auto p-8">
@@ -142,7 +136,7 @@ export function NoteGenerator() {
         >
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-2xl font-bold">生成笔记</h2>
+        <h2 className="text-2xl font-bold">Generate Note</h2>
       </div>
 
       <div className="space-y-6">
@@ -150,15 +144,41 @@ export function NoteGenerator() {
           videoUrl={videoUrl}
           onVideoUrlChange={setVideoUrl}
           onFileSelect={setSelectedFile}
+          fileUploadEnabled={false}
         />
 
+        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
+          <label className="block text-sm font-medium mb-2">Model profile for this run</label>
+          <select
+            value={selectedProfileId}
+            onChange={(event) => selectProfile(event.target.value)}
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
+          >
+            <option value="">System default model</option>
+            {profiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {profile.name} / {profile.modelName}
+                {profile.isDefault ? ' (default)' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            Active model:
+            {selectedProfile
+              ? ` ${selectedProfile.name} / ${selectedProfile.modelName}`
+              : defaultProfile
+                ? ` your default profile ${defaultProfile.name} / ${defaultProfile.modelName}`
+                : ' backend .env default'}
+          </p>
+        </div>
+
         <button
-          onClick={handleGenerate}
+          onClick={() => void handleGenerate()}
           disabled={status !== 'idle' || (!videoUrl && !selectedFile)}
           className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-primary-light dark:bg-primary-dark text-white font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Wand2 className="w-5 h-5" />
-          {status === 'idle' ? '开始生成' : '生成中...'}
+          {status === 'idle' ? 'Start generation' : 'Generating...'}
         </button>
 
         <GenerateProgress

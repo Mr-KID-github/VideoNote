@@ -1,6 +1,6 @@
-import { Moon, Sun, Monitor } from 'lucide-react'
-import { useThemeStore } from '../../stores/themeStore'
 import clsx from 'clsx'
+import { Monitor, Moon, Sun } from 'lucide-react'
+import { useThemeStore } from '../../stores/themeStore'
 
 export function ThemeToggle() {
   const { theme, setTheme } = useThemeStore()
@@ -18,6 +18,7 @@ export function ThemeToggle() {
   }
 
   const Icon = icons[theme]
+  const label = theme === 'system' ? 'system' : theme
 
   return (
     <button
@@ -26,7 +27,7 @@ export function ThemeToggle() {
         'p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors',
         'text-gray-600 dark:text-gray-400'
       )}
-      title={`当前: ${theme === 'system' ? '跟随系统' : theme === 'light' ? '浅色' : '深色'}`}
+      title={`Theme: ${label}`}
     >
       <Icon className="w-5 h-5" />
     </button>

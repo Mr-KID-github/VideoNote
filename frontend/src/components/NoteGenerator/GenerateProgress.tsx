@@ -1,5 +1,5 @@
-import { Loader2, CheckCircle, XCircle, FileAudio, Download, Mic, FileText } from 'lucide-react'
 import clsx from 'clsx'
+import { CheckCircle, Download, FileAudio, FileText, Image, Loader2, Mic, XCircle } from 'lucide-react'
 
 interface GenerateProgressProps {
   status: 'idle' | 'uploading' | 'processing' | 'success' | 'failed'
@@ -9,17 +9,21 @@ interface GenerateProgressProps {
 }
 
 const steps = [
-  { key: 'uploading', label: '上传文件', icon: FileAudio },
-  { key: 'downloading', label: '下载视频', icon: Download },
-  { key: 'transcribing', label: '转录音频', icon: Mic },
-  { key: 'summarizing', label: '生成笔记', icon: FileText },
+  { key: 'uploading', label: 'Prepare request', icon: FileAudio },
+  { key: 'downloading', label: 'Download audio', icon: Download },
+  { key: 'transcribing', label: 'Transcribe audio', icon: Mic },
+  { key: 'summarizing', label: 'Generate note', icon: FileText },
+  { key: 'screenshots', label: 'Process screenshots', icon: Image },
 ]
+
+const stepLabels = Object.fromEntries(steps.map((step) => [step.key, step.label]))
 
 export function GenerateProgress({ status, progress, currentStep, error }: GenerateProgressProps) {
   const getStepStatus = (stepKey: string) => {
+    if (status === 'success') return 'completed'
     if (status === 'failed') return 'failed'
-    const currentIndex = steps.findIndex(s => s.key === currentStep)
-    const stepIndex = steps.findIndex(s => s.key === stepKey)
+    const currentIndex = steps.findIndex((step) => step.key === currentStep)
+    const stepIndex = steps.findIndex((step) => step.key === stepKey)
     if (stepIndex < currentIndex) return 'completed'
     if (stepIndex === currentIndex) return status === 'processing' ? 'processing' : 'pending'
     return 'pending'
@@ -29,10 +33,9 @@ export function GenerateProgress({ status, progress, currentStep, error }: Gener
 
   return (
     <div className="space-y-6">
-      {/* 进度条 */}
       <div className="space-y-2">
         <div className="flex justify-between text-sm text-gray-600 dark:text-gray-400">
-          <span>{currentStep || '准备中...'}</span>
+          <span>{status === 'success' ? 'Completed' : status === 'failed' ? 'Failed' : stepLabels[currentStep] || 'Preparing...'}</span>
           <span>{progress}%</span>
         </div>
         <div className="h-2 bg-gray-200 dark:bg-gray-700 rounded-full overflow-hidden">
@@ -46,7 +49,6 @@ export function GenerateProgress({ status, progress, currentStep, error }: Gener
         </div>
       </div>
 
-      {/* 步骤列表 */}
       <div className="space-y-3">
         {steps.map((step) => {
           const stepStatus = getStepStatus(step.key)
@@ -79,7 +81,6 @@ export function GenerateProgress({ status, progress, currentStep, error }: Gener
         })}
       </div>
 
-      {/* 错误信息 */}
       {error && (
         <div className="p-4 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg">
           <p className="text-red-600 dark:text-red-400 text-sm">{error}</p>

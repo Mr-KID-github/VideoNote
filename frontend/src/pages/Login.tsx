@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
 import { useAuthStore } from '../stores/authStore'
-import { Mail, Lock, Eye, EyeOff } from 'lucide-react'
 
 export function Login() {
   const [isLogin, setIsLogin] = useState(true)
@@ -14,27 +14,42 @@ export function Login() {
   const { signIn, signUp } = useAuthStore()
   const navigate = useNavigate()
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault()
     setError('')
     setLoading(true)
 
-    const { error } = isLogin
-      ? await signIn(email, password)
-      : await signUp(email, password)
+    if (isLogin) {
+      const { error: signInError } = await signIn(email, password)
 
-    if (error) {
-      setError(error.message)
-      setLoading(false)
-    } else {
-      if (!isLogin) {
-        setError('注册成功，请登录邮箱验证后使用')
-        setIsLogin(true)
-      } else {
-        navigate('/')
+      if (signInError) {
+        setError(signInError.message)
+        setLoading(false)
+        return
       }
+
       setLoading(false)
+      navigate('/')
+      return
     }
+
+    const { error: signUpError, session } = await signUp(email, password)
+
+    if (signUpError) {
+      setError(signUpError.message)
+      setLoading(false)
+      return
+    }
+
+    setLoading(false)
+
+    if (session) {
+      navigate('/')
+      return
+    }
+
+    setError('Account created. Sign in to continue.')
+    setIsLogin(true)
   }
 
   return (
@@ -42,23 +57,23 @@ export function Login() {
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">VideoNote</h1>
-          <p className="text-gray-600 dark:text-gray-400">AI 笔记助手，让知识更简单</p>
+          <p className="text-gray-600 dark:text-gray-400">AI note assistant for video workflows.</p>
         </div>
 
         <div className="bg-white dark:bg-[#202020] rounded-2xl shadow-lg p-8">
-          <h2 className="text-xl font-semibold mb-6">{isLogin ? '登录' : '注册'}</h2>
+          <h2 className="text-xl font-semibold mb-6">{isLogin ? 'Sign in' : 'Sign up'}</h2>
 
           <form onSubmit={handleSubmit} className="space-y-4">
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                邮箱
+                Email
               </label>
               <div className="relative">
                 <Mail className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type="email"
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(event) => setEmail(event.target.value)}
                   className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
                   placeholder="your@email.com"
                   required
@@ -68,16 +83,16 @@ export function Login() {
 
             <div>
               <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                密码
+                Password
               </label>
               <div className="relative">
                 <Lock className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
                 <input
                   type={showPassword ? 'text' : 'password'}
                   value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+                  onChange={(event) => setPassword(event.target.value)}
                   className="w-full pl-10 pr-12 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
-                  placeholder="••••••••"
+                  placeholder="At least 6 characters"
                   required
                   minLength={6}
                 />
@@ -91,26 +106,27 @@ export function Login() {
               </div>
             </div>
 
-            {error && (
-              <p className="text-red-500 text-sm">{error}</p>
-            )}
+            {error ? <p className="text-red-500 text-sm">{error}</p> : null}
 
             <button
               type="submit"
               disabled={loading}
               className="w-full py-3 px-4 bg-primary-light dark:bg-primary-dark text-white font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50"
             >
-              {loading ? '处理中...' : isLogin ? '登录' : '注册'}
+              {loading ? 'Working...' : isLogin ? 'Sign in' : 'Sign up'}
             </button>
           </form>
 
           <p className="mt-6 text-center text-sm text-gray-600 dark:text-gray-400">
-            {isLogin ? '还没有账号？' : '已有账号？'}
+            {isLogin ? "Don't have an account?" : 'Already have an account?'}
             <button
-              onClick={() => { setIsLogin(!isLogin); setError('') }}
+              onClick={() => {
+                setIsLogin(!isLogin)
+                setError('')
+              }}
               className="ml-1 text-primary-light dark:text-primary-dark hover:underline"
             >
-              {isLogin ? '立即注册' : '立即登录'}
+              {isLogin ? 'Create account' : 'Back to sign in'}
             </button>
           </p>
         </div>

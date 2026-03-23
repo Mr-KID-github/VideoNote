@@ -1,7 +1,7 @@
-import { Search, Bell, User, LogOut, Plus } from 'lucide-react'
-import { ThemeToggle } from './ThemeToggle'
-import { useAuthStore } from '../../stores/authStore'
+import { Bell, LogOut, Plus, Search, User } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
+import { useAuthStore } from '../../stores/authStore'
+import { ThemeToggle } from './ThemeToggle'
 
 export function Header() {
   const { user, signOut } = useAuthStore()
@@ -23,7 +23,7 @@ export function Header() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
           <input
             type="text"
-            placeholder="搜索笔记..."
+            placeholder="Search notes..."
             className="w-64 pl-9 pr-4 py-1.5 text-sm rounded-lg border border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#191919] focus:ring-2 focus:ring-primary-light dark:focus:ring-primary-dark focus:border-transparent outline-none transition-all"
           />
         </div>
@@ -40,14 +40,14 @@ export function Header() {
             className="flex items-center gap-1 px-3 py-1.5 bg-primary-light dark:bg-primary-dark text-white text-sm rounded-lg hover:opacity-90 transition-opacity"
           >
             <Plus className="w-4 h-4" />
-            新建
+            New
           </button>
         </div>
 
         <button
           onClick={handleSignOut}
           className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800 ml-2"
-          title="退出登录"
+          title="Sign out"
         >
           <LogOut className="w-5 h-5 text-gray-600 dark:text-gray-400" />
         </button>

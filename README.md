@@ -36,6 +36,27 @@ python main.py
 
 访问 API 文档: http://127.0.0.1:8900/docs
 
+### 4. Windows 一键启动
+
+在项目根目录直接运行：
+
+```powershell
+.\start-dev.bat
+```
+
+或：
+
+```powershell
+.\start-dev.ps1
+```
+
+脚本会分别打开两个终端窗口，启动：
+
+- 后端 FastAPI: `http://127.0.0.1:8900`
+- 前端 Vite: `http://localhost:3000`
+
+首次使用前仍需要先安装依赖，并确保 `.env` 已正确配置。
+
 ## 📡 API 接口
 
 ### 同步生成笔记

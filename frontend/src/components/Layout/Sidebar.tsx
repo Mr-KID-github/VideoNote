@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { Folder, FileText, Plus, ChevronRight, ChevronDown, Users, Home, Settings } from 'lucide-react'
-import { useNavigate, useLocation } from 'react-router-dom'
+import { ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 
 interface FolderItem {
@@ -16,8 +16,8 @@ export function Sidebar() {
   const location = useLocation()
 
   const toggleFolder = (id: string) => {
-    setExpandedFolders(prev => {
-      const next = new Set(prev)
+    setExpandedFolders((previous) => {
+      const next = new Set(previous)
       if (next.has(id)) next.delete(id)
       else next.add(id)
       return next
@@ -25,17 +25,16 @@ export function Sidebar() {
   }
 
   const navItems = [
-    { path: '/', icon: Home, label: '首页' },
-    { path: '/notes', icon: FileText, label: '我的笔记' },
-    { path: '/team', icon: Users, label: '团队空间' },
-    { path: '/settings', icon: Settings, label: '设置' },
+    { path: '/', icon: Home, label: 'Home' },
+    { path: '/notes', icon: FileText, label: 'My notes' },
+    { path: '/team', icon: Users, label: 'Team' },
+    { path: '/settings', icon: Settings, label: 'Settings' },
   ]
 
   return (
     <aside className="w-60 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#202020] flex flex-col">
-      {/* 导航 */}
       <nav className="p-2 space-y-0.5">
-        {navItems.map(item => (
+        {navItems.map((item) => (
           <button
             key={item.path}
             onClick={() => navigate(item.path)}
@@ -54,10 +53,11 @@ export function Sidebar() {
 
       <div className="flex-1 overflow-auto p-2">
         <div className="flex items-center justify-between px-3 py-2">
-          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">个人空间</span>
+          <span className="text-xs font-medium text-gray-500 dark:text-gray-400">Personal workspace</span>
           <button
             onClick={() => {}}
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
+            title="Create folder"
           >
             <Plus className="w-4 h-4 text-gray-500" />
           </button>
@@ -65,9 +65,9 @@ export function Sidebar() {
 
         <div className="space-y-0.5">
           {folders.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-400">暂无文件夹</p>
+            <p className="px-3 py-2 text-xs text-gray-400">No folders yet.</p>
           ) : (
-            folders.map(folder => (
+            folders.map((folder) => (
               <FolderItemComponent
                 key={folder.id}
                 folder={folder}
@@ -99,7 +99,7 @@ function FolderItemComponent({ folder, expanded, onToggle }: {
       </button>
       {expanded && folder.children && (
         <div className="ml-4">
-          {folder.children.map(child => (
+          {folder.children.map((child) => (
             <FolderItemComponent key={child.id} folder={child} expanded={false} onToggle={() => {}} />
           ))}
         </div>

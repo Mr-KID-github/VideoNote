@@ -18,9 +18,15 @@ env/
 # IDE
 .idea/
 .vscode/
+.claude/
 *.swp
 *.swo
 .DS_Store
+nul
+
+# Worktrees
+.worktrees/
+worktrees/
 
 # Project data
 data/
@@ -29,3 +35,4 @@ output/
 *.mp4
 *.wav
 *.m4a
+*.log
