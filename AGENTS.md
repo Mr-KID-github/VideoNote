@@ -1,7 +1,7 @@
 # Repository Guidelines
 
 ## Architecture Overview
-VideoNote is a full-stack video-to-note workspace with three moving parts:
+VINote is a full-stack video-to-note workspace with three moving parts:
 
 - Backend: FastAPI API for downloading media, transcribing audio, generating Markdown notes, and managing per-user model profiles.
 - Frontend: Vite + React + TypeScript app for authentication, note generation, note library browsing, editing, and settings.

@@ -1,6 +1,6 @@
-# VideoNote
+# VINote
 
-VideoNote 是一个“视频/音频 -> 结构化 Markdown 笔记”的全栈项目。
+VINote 是一个“视频/音频 -> 结构化 Markdown 笔记”的全栈项目。
 
 它包含：
 
@@ -77,13 +77,13 @@ Application Services
 
 ### Infrastructure
 
-- Supabase Auth + Postgres
+- Self-hosted Supabase-compatible stack
 - MCP JSON-RPC server
 
 ## 目录结构
 
 ```text
-VideoNote/
+VINote/
 ├─ app/
 │  ├─ routers/                  # FastAPI 路由
 │  ├─ services/                 # 核心业务编排与集成
@@ -117,9 +117,10 @@ VideoNote/
 - Python 3.10+
 - Node.js 18+
 - FFmpeg
-- 可选：Supabase CLI + Docker Desktop
+- Docker Desktop（如需整栈容器部署）
+- 可选：Supabase CLI（仅在你想单独使用官方本地开发流时）
 
-如果你需要完整体验“登录 / 笔记库 / 模型配置”能力，建议把本地 Supabase 一起启动。
+如果你使用 Docker 部署，Supabase 认证和数据库能力已经内置在整套应用栈里。
 
 ## 快速开始
 
@@ -176,7 +177,7 @@ cp .env.example .env.local
 
 本地开发时，`VITE_API_BASE_URL` 可以留空，Vite 会通过代理将 `/api` 转发到 `http://localhost:8900`。
 
-### 5. 启动本地 Supabase（可选但推荐）
+### 5. 启动本地 Supabase（仅非 Docker 本地开发时需要）
 
 ```powershell
 .\supabase\start-local.ps1
@@ -233,6 +234,142 @@ npm run dev -- --host 0.0.0.0 --port 3100
 
 - 后端 API / Swagger: `http://127.0.0.1:8900/docs`
 - 前端: `http://localhost:3100`
+
+## Docker 部署
+
+项目现在支持容器化部署，适合两类场景：
+
+- 本地快速上手：直接 `docker compose up`
+- 服务器 CI/CD：构建镜像后按环境注入变量，无需为每个环境重新打包前端
+
+当前 `docker-compose.yml` 会一并启动：
+
+- VINote 前端
+- VINote 后端
+- 内置 Supabase Postgres
+- Supabase Auth
+- Supabase REST API
+- Supabase 网关
+
+### 1. 准备环境变量
+
+复制根目录模板：
+
+```bash
+cp .env.example .env
+```
+
+Docker 场景下需要重点确认：
+
+- 内置 Supabase：
+  - `POSTGRES_PASSWORD`
+  - `JWT_SECRET`
+  - `ANON_KEY`
+  - `SERVICE_ROLE_KEY`
+  - `SITE_URL`
+  - `API_EXTERNAL_URL`
+- 后端：
+  - `LLM_API_KEY`
+  - `LLM_BASE_URL`
+  - `LLM_MODEL`
+  - `TRANSCRIBER_TYPE`
+  - `MODEL_PROFILE_ENCRYPTION_KEY`
+- 前端运行时：
+  - `VITE_SUPABASE_URL`
+  - `VITE_SUPABASE_ANON_KEY`
+  - `VITE_API_BASE_URL`
+
+说明：
+
+- 如果前端和后端一起通过 `docker-compose.yml` 启动，`VITE_API_BASE_URL` 可以留空，前端容器会通过 Nginx 反向代理访问 `/api`。
+- 默认情况下，前端会通过同域路径 `/supabase` 访问内置 Supabase 网关。
+- 如果前端部署在独立域名/CDN，`VITE_API_BASE_URL` 应设置成你的后端公开地址，例如 `https://api.example.com`。
+
+### 2. 本地启动
+
+```bash
+docker compose up --build
+```
+
+默认端口：
+
+- 前端: `http://localhost:3100`
+- 后端: `http://localhost:8900`
+- Supabase Gateway: `http://localhost:54321`
+- Postgres: `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:54322/postgres`
+
+### 3. 后端容器说明
+
+- 使用根目录 [Dockerfile](C:\Users\25772\Desktop\Project\VideoNote\Dockerfile)
+- 基于 `python:3.12-slim`
+- 内置 `ffmpeg`
+- 启动命令为 `uvicorn main:app --host 0.0.0.0 --port 8900`
+- 暴露健康检查端点：`/healthz`
+
+### 4. 前端容器说明
+
+- 使用 [frontend/Dockerfile](C:\Users\25772\Desktop\Project\VideoNote\frontend\Dockerfile)
+- 多阶段构建：`Node` 构建 + `Nginx` 运行
+- 支持 SPA 路由回退
+- 支持 `/api` 代理到后端容器
+- 容器启动时会根据环境变量生成 `runtime-config.js`
+
+这样前端镜像可以“一次构建，多环境复用”，这对 CI/CD 很关键。
+
+### 5. 内置 Supabase 说明
+
+容器编排内置的是一套面向 VINote 使用场景的自托管 Supabase 兼容栈：
+
+- `supabase-db`
+- `supabase-auth`
+- `supabase-rest`
+- `supabase-gateway`
+- `supabase-migrate`
+
+应用迁移会在启动时自动执行，用户不需要再手动运行 `supabase db push`。
+
+前端默认通过：
+
+- `/supabase/auth/v1/*`
+- `/supabase/rest/v1/*`
+
+访问认证和数据库接口。
+
+### 6. 数据目录
+
+`docker-compose.yml` 已挂载以下目录，避免容器销毁后丢失产物：
+
+- `./data -> /app/data`
+- `./output -> /app/output`
+- `supabase-db-data` Docker volume -> Supabase Postgres 持久化数据
+
+## CI/CD
+
+仓库已增加 GitHub Actions 工作流：
+
+- [docker.yml](C:\Users\25772\Desktop\Project\VideoNote\.github\workflows\docker.yml)
+
+它会：
+
+- 在 `pull_request` 时校验前后端镜像能否构建
+- 在推送到 `main` 时构建镜像并推送到 `GHCR`
+
+默认发布的镜像名：
+
+- `ghcr.io/<owner>/vinote-backend`
+- `ghcr.io/<owner>/vinote-frontend`
+
+服务器部署的推荐方式：
+
+1. CI 在 `main` 上发布新镜像
+2. 服务器拉取最新镜像
+3. 服务器执行 `docker compose pull && docker compose up -d`
+
+如果你后面要接真正的自动发布，我建议再加一层：
+
+- GitHub Actions 通过 SSH 登录服务器
+- 在服务器上执行 `docker login ghcr.io`
+- 然后执行 `docker compose pull && docker compose up -d`
 
 ## 关键后端配置
 
@@ -375,9 +512,9 @@ python mcp_server.py
 ```json
 {
   "mcpServers": {
-    "videonote": {
+    "vinote": {
       "command": "python",
-      "args": ["/path/to/VideoNote/mcp_server.py"]
+      "args": ["/path/to/VINote/mcp_server.py"]
     }
   }
 }

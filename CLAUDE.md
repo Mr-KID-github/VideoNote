@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-VideoNote is a FastAPI-based backend system that generates structured Markdown notes from video URLs. It downloads video audio, transcribes it using Whisper (either Groq cloud API or local), and uses an LLM to generate formatted notes in various styles.
+VINote is a FastAPI-based backend system that generates structured Markdown notes from video and audio sources. It downloads media audio, transcribes it using Whisper (either Groq cloud API or local), and uses an LLM to generate formatted notes in various styles.
 
 ## Commands
 
 ### Activate conda environment
 ```bash
-conda activate videonote
+conda activate vinote
 ```
 
 ### Run the server
@@ -35,7 +35,7 @@ Using `faster-whisper` is recommended for local transcription - it's faster than
 ### Setup
 ```bash
 # Make sure to activate conda environment first
-conda activate videonote
+conda activate vinote
 
 # Install faster-whisper
 pip install faster-whisper
@@ -105,7 +105,7 @@ Defined in `app/routers/note.py`:
 
 ### MCP Server
 
-VideoNote can be used as an MCP server for other AI assistants:
+VINote can be used as an MCP server for other AI assistants:
 
 - **File**: `mcp_server.py`
 - **Tools**: `generate_video_note`, `list_note_styles`

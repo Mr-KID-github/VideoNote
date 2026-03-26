@@ -1,4 +1,4 @@
-# VideoNote 前端设计文档
+# VINote 前端设计文档
 
 **日期**: 2026-03-02
 **主题**: React 前端开发 - 团队协作笔记系统
@@ -9,7 +9,7 @@
 
 **技术栈**:
 - 前端: React + Vite
-- 后端服务: VideoNote (现有) + Supabase (认证+数据库)
+- 后端服务: VINote (现有) + Supabase (认证+数据库)
 - 部署: Vercel
 
 ## 2. 页面结构

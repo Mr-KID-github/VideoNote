@@ -33,7 +33,7 @@ if (-not (Test-CommandExists 'npm')) {
     throw 'npm was not found. Install Node.js first.'
 }
 
-Write-Host 'Starting VideoNote...'
+Write-Host 'Starting VINote...'
 Write-Host 'Backend:  http://127.0.0.1:8900/docs'
 Write-Host 'Frontend: http://localhost:3100'
 Write-Host ''

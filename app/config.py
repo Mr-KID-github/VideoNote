@@ -1,5 +1,5 @@
 """
-VideoNote configuration.
+VINote configuration.
 """
 import os
 from dataclasses import dataclass
@@ -16,6 +16,19 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 class Settings:
     host: str = os.getenv("HOST", "0.0.0.0")
     port: int = int(os.getenv("PORT", "8900"))
+    cors_allow_origins: str = os.getenv(
+        "CORS_ALLOW_ORIGINS",
+        ",".join(
+            [
+                "http://localhost:3000",
+                "http://127.0.0.1:3000",
+                "http://localhost:3100",
+                "http://127.0.0.1:3100",
+                "http://localhost:5173",
+                "http://127.0.0.1:5173",
+            ]
+        ),
+    )
 
     llm_api_key: str = os.getenv("LLM_API_KEY", "")
     llm_base_url: str = os.getenv("LLM_BASE_URL", "https://api.openai.com/v1")
@@ -51,6 +64,10 @@ class Settings:
     def __post_init__(self):
         self.data_dir.mkdir(parents=True, exist_ok=True)
         self.output_dir.mkdir(parents=True, exist_ok=True)
+
+    @property
+    def cors_allow_origins_list(self) -> list[str]:
+        return [origin.strip() for origin in self.cors_allow_origins.split(",") if origin.strip()]
 
 
 settings = Settings()

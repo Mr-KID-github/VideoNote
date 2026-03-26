@@ -28,7 +28,7 @@ export const useThemeStore = create<ThemeState>()(
       },
     }),
     {
-      name: 'videonote-theme',
+      name: 'vinote-theme',
     }
   )
 )

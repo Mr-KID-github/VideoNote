@@ -1,5 +1,5 @@
 """
-VideoNote — 纯后端视频总结系统
+VINote — 纯后端视频总结系统
 
 启动命令:
     python main.py
@@ -20,12 +20,12 @@ logging.basicConfig(
     datefmt="%H:%M:%S",
 )
 
-logger = logging.getLogger("videonote")
+logger = logging.getLogger("vinote")
 
 app = create_app()
 
 if __name__ == "__main__":
-    logger.info(f"🚀 VideoNote 启动中 http://{settings.host}:{settings.port}")
+    logger.info(f"🚀 VINote 启动中 http://{settings.host}:{settings.port}")
     logger.info(f"📖 API 文档: http://127.0.0.1:{settings.port}/docs")
     logger.info(f"🤖 LLM: {settings.llm_model} @ {settings.llm_base_url}")
     logger.info(f"🎙️ Whisper: {settings.whisper_model_size} ({settings.whisper_device})")

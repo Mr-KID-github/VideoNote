@@ -1,5 +1,5 @@
 """
-VideoNote MCP server.
+VINote MCP server.
 """
 import json
 import sys
@@ -13,7 +13,7 @@ from app.llm.prompts import STYLE_MAP
 from app.services.note_service import NoteService
 
 
-class VideoNoteMCP:
+class VINoteMCP:
     def __init__(self):
         self.note_service = NoteService()
 
@@ -95,7 +95,7 @@ class VideoNoteMCP:
         return {"styles": styles}
 
 
-SERVER = VideoNoteMCP()
+SERVER = VINoteMCP()
 
 
 def handle_jsonrpc(request: dict) -> dict:
@@ -140,7 +140,7 @@ def handle_jsonrpc(request: dict) -> dict:
             "result": {
                 "protocolVersion": "2024-11-05",
                 "capabilities": {},
-                "serverInfo": {"name": "videonote", "version": "1.0.0"},
+                "serverInfo": {"name": "vinote", "version": "1.0.0"},
             },
         }
 
@@ -152,7 +152,7 @@ def handle_jsonrpc(request: dict) -> dict:
 
 
 def main():
-    print("VideoNote MCP Server started", file=sys.stderr)
+    print("VINote MCP Server started", file=sys.stderr)
 
     while True:
         try:

@@ -1,10 +1,10 @@
-# VideoNote 前端实施计划
+# VINote 前端实施计划
 
 > **For Claude:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development to implement this plan task-by-task.
 
 **Goal:** 创建 React + Vite 前端，支持团队协作笔记管理
 
-**Architecture:** 单页应用 (SPA)，使用 React Router，状态管理用 Zustand，后端对接 Supabase (认证+数据库) 和 VideoNote API
+**Architecture:** 单页应用 (SPA)，使用 React Router，状态管理用 Zustand，后端对接 Supabase (认证+数据库) 和 VINote API
 
 **Tech Stack:** React 18 + Vite + TypeScript + Tailwind CSS + Supabase + Zustand + React Router + @uiw/react-md-editor
 
@@ -34,7 +34,7 @@ mkdir -p frontend/src
 
 ```json
 {
-  "name": "videonote-frontend",
+  "name": "vinote-frontend",
   "private": true,
   "version": "0.0.1",
   "type": "module",
@@ -192,7 +192,7 @@ export default {
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>VideoNote - AI 笔记助手</title>
+    <title>VINote - AI 笔记助手</title>
   </head>
   <body>
     <div id="root"></div>
@@ -244,7 +244,7 @@ body {
 function App() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#191919] text-gray-900 dark:text-gray-100">
-      <h1 className="text-2xl font-bold p-4">VideoNote Frontend</h1>
+      <h1 className="text-2xl font-bold p-4">VINote Frontend</h1>
     </div>
   )
 }
@@ -322,7 +322,7 @@ export const useThemeStore = create<ThemeState>()(
       },
     }),
     {
-      name: 'videonote-theme',
+      name: 'vinote-theme',
     }
   )
 )
@@ -385,7 +385,7 @@ function App() {
   return (
     <div className="min-h-screen bg-white dark:bg-[#191919] text-gray-900 dark:text-gray-100">
       <header className="flex items-center justify-between px-4 py-3 border-b border-gray-200 dark:border-gray-700">
-        <h1 className="text-xl font-semibold">VideoNote</h1>
+        <h1 className="text-xl font-semibold">VINote</h1>
         <ThemeToggle />
       </header>
     </div>
@@ -480,7 +480,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'videonote-auth',
+      name: 'vinote-auth',
       partialize: (state) => ({ session: state.session }),
     }
   )
@@ -535,7 +535,7 @@ export function Login() {
     <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#191919] p-4">
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">VideoNote</h1>
+          <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">VINote</h1>
           <p className="text-gray-600 dark:text-gray-400">AI 笔记助手，让知识更简单</p>
         </div>
 
@@ -739,7 +739,7 @@ export function Header() {
   return (
     <header className="h-14 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-bold text-primary-light dark:text-primary-dark">VideoNote</h1>
+        <h1 className="text-xl font-bold text-primary-light dark:text-primary-dark">VINote</h1>
       </div>
 
       <div className="flex items-center gap-2">
@@ -898,7 +898,7 @@ function FolderItemComponent({ folder, expanded, onToggle }: {
 export function Home() {
   return (
     <div className="p-8">
-      <h2 className="text-2xl font-bold mb-4">欢迎使用 VideoNote</h2>
+      <h2 className="text-2xl font-bold mb-4">欢迎使用 VINote</h2>
       <p className="text-gray-600 dark:text-gray-400">选择左侧文件夹或创建新笔记开始</p>
     </div>
   )

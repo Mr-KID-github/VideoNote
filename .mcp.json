@@ -1,6 +1,6 @@
 {
   "mcpServers": {
-    "videonote": {
+    "vinote": {
       "command": "python",
       "args": ["/Users/yuzou/Desktop/Project/VideoNote/mcp_server.py"]
     }

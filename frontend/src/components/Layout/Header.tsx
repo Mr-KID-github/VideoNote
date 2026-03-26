@@ -17,7 +17,7 @@ export function Header() {
   return (
     <header className="h-14 px-4 flex items-center justify-between border-b border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
       <div className="flex items-center gap-4">
-        <h1 className="text-xl font-bold text-primary-light dark:text-primary-dark">VideoNote</h1>
+        <h1 className="text-xl font-bold text-primary-light dark:text-primary-dark">VINote</h1>
       </div>
 
       <div className="flex items-center gap-2">

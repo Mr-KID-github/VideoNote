@@ -55,7 +55,7 @@ export const useAuthStore = create<AuthState>()(
       },
     }),
     {
-      name: 'videonote-auth',
+      name: 'vinote-auth',
       partialize: (state) => ({ session: state.session }),
     }
   )

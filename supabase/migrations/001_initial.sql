@@ -1,4 +1,4 @@
--- VideoNote Database Schema
+-- VINote Database Schema
 -- Run this in Supabase SQL Editor to create the required tables
 
 -- 1. 团队表

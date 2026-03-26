@@ -1,4 +1,4 @@
-# VideoNote Architecture
+# VINote Architecture
 
 ## Current Scope
 

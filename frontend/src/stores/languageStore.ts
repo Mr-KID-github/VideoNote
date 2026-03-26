@@ -94,7 +94,7 @@ export const useLanguageStore = create<LanguageState>()(
       },
     }),
     {
-      name: 'videonote-language',
+      name: 'vinote-language',
       partialize: (state) => ({ language: state.language }),
     }
   )
