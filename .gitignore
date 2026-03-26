@@ -24,6 +24,16 @@ env/
 .DS_Store
 nul
 
+# Frontend local env
+frontend/.env
+frontend/.env.local
+frontend/.env.*.local
+
+# Legacy / local infra leftovers
+frontend/supabase/
+supabase/.branches/
+supabase/.temp/
+
 # Worktrees
 .worktrees/
 worktrees/
