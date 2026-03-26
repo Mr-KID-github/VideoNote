@@ -1,8 +1,7 @@
-name: vinote
-
 services:
   supabase-db:
     image: supabase/postgres:15.8.1.085
+    platform: linux/amd64
     environment:
       POSTGRES_HOST: /var/run/postgresql
       POSTGRES_PORT: 5432
@@ -52,6 +51,7 @@ services:
 
   supabase-auth:
     image: supabase/gotrue:v2.186.0
+    platform: linux/amd64
     depends_on:
       supabase-db:
         condition: service_healthy
@@ -95,6 +95,7 @@ services:
 
   supabase-rest:
     image: postgrest/postgrest:v14.6
+    platform: linux/amd64
     depends_on:
       supabase-db:
         condition: service_healthy

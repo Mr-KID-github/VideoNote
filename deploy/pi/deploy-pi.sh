@@ -2,18 +2,13 @@
 set -euo pipefail
 
 HOST="${1:-}"
-USER_NAME="${PI_USER:-pi}"
+USER_NAME="${PI_USER:-}"
 PORT="${PI_PORT:-22}"
 BRANCH="${PI_BRANCH:-main}"
 REPO_URL="${PI_REPO_URL:-https://github.com/Mr-KID-github/VideoNote.git}"
-REMOTE_DIR="${PI_REMOTE_DIR:-/home/pi/vinote}"
+REMOTE_DIR="${PI_REMOTE_DIR:-}"
 ENV_FILE="${PI_ENV_FILE:-.env}"
 SKIP_PUSH="${PI_SKIP_PUSH:-false}"
-
-if [[ -z "${HOST}" ]]; then
-  echo "Usage: ./deploy/pi/deploy-pi.sh <host>" >&2
-  exit 1
-fi
 
 for cmd in git ssh scp; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -22,10 +17,33 @@ for cmd in git ssh scp; do
   fi
 done
 
+if ! command -v tar >/dev/null 2>&1; then
+  echo "Missing required command: tar" >&2
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
-ENV_PATH="${REPO_ROOT}/${ENV_FILE}"
+LOCAL_CONFIG_PATH="${SCRIPT_DIR}/local.env"
 FRONTEND_PORT_VALUE="3100"
+
+if [[ -f "${LOCAL_CONFIG_PATH}" ]]; then
+  # shellcheck disable=SC1090
+  source "${LOCAL_CONFIG_PATH}"
+fi
+
+HOST="${HOST:-${PI_HOST:-}}"
+USER_NAME="${USER_NAME:-${PI_USER:-pi}}"
+PORT="${PORT:-${PI_PORT:-22}}"
+BRANCH="${BRANCH:-${PI_BRANCH:-main}}"
+REMOTE_DIR="${REMOTE_DIR:-${PI_REMOTE_DIR:-/home/${USER_NAME}/vinote}}"
+ENV_FILE="${ENV_FILE:-${PI_ENV_FILE:-.env}}"
+ENV_PATH="${REPO_ROOT}/${ENV_FILE}"
+
+if [[ -z "${HOST}" ]]; then
+  echo "Missing Raspberry Pi host. Pass it as the first argument or create deploy/pi/local.env." >&2
+  exit 1
+fi
 
 if [[ ! -f "${ENV_PATH}" ]]; then
   echo "Env file not found: ${ENV_PATH}" >&2
@@ -48,43 +66,60 @@ fi
 
 REMOTE="${USER_NAME}@${HOST}"
 REMOTE_ENV="/tmp/vinote.env"
+REMOTE_ARCHIVE="/tmp/vinote-source.tar.gz"
 
 echo "Uploading env file to ${REMOTE}..."
 scp -P "${PORT}" "${ENV_PATH}" "${REMOTE}:${REMOTE_ENV}" >/dev/null
+
+LOCAL_ARCHIVE="$(mktemp "${TMPDIR:-/tmp}/vinote-source.XXXXXX.tar.gz")"
+LOCAL_ARCHIVE_LIST="$(mktemp "${TMPDIR:-/tmp}/vinote-source.XXXXXX.list")"
+trap 'rm -f "${LOCAL_ARCHIVE}" "${LOCAL_ARCHIVE_LIST}"' EXIT
+
+echo "Creating source archive from local working tree..."
+git -C "${REPO_ROOT}" ls-files --cached --modified --others --exclude-standard > "${LOCAL_ARCHIVE_LIST}"
+tar -czf "${LOCAL_ARCHIVE}" -C "${REPO_ROOT}" -T "${LOCAL_ARCHIVE_LIST}"
+
+echo "Uploading source archive to ${REMOTE}..."
+scp -P "${PORT}" "${LOCAL_ARCHIVE}" "${REMOTE}:${REMOTE_ARCHIVE}" >/dev/null
 
 echo "Deploying VINote to Raspberry Pi..."
 ssh -p "${PORT}" "${REMOTE}" <<EOF
 set -eu
 
-for cmd in git docker; do
+for cmd in docker tar; do
   if ! command -v "\${cmd}" >/dev/null 2>&1; then
     echo "Missing required command on Raspberry Pi: \${cmd}" >&2
     exit 1
   fi
 done
 
-docker compose version >/dev/null 2>&1 || {
-  echo "Missing required command on Raspberry Pi: docker compose" >&2
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "Missing required command on Raspberry Pi: docker compose or docker-compose" >&2
   exit 1
-}
-
-mkdir -p "${REMOTE_DIR}"
-
-if [ ! -d "${REMOTE_DIR}/.git" ]; then
-  git clone --branch "${BRANCH}" "${REPO_URL}" "${REMOTE_DIR}"
 fi
 
-cd "${REMOTE_DIR}"
-git fetch origin "${BRANCH}"
-git checkout "${BRANCH}"
-git reset --hard "origin/${BRANCH}"
-cp "${REMOTE_ENV}" .env
+mkdir -p "${REMOTE_DIR}"
+find "${REMOTE_DIR}" -mindepth 1 -maxdepth 1 \\
+  ! -name data \\
+  ! -name output \\
+  ! -name .env \\
+  -exec rm -rf {} +
+tar -xzf "${REMOTE_ARCHIVE}" -C "${REMOTE_DIR}"
+cp "${REMOTE_ENV}" "${REMOTE_DIR}/.env"
+rm -f "${REMOTE_ARCHIVE}"
 rm -f "${REMOTE_ENV}"
+
+cd "${REMOTE_DIR}"
+export COMPOSE_PROJECT_NAME=vinote
 
 mkdir -p data output
 
-docker compose up -d --build --remove-orphans
-docker compose ps
+\$COMPOSE_CMD up -d --build --remove-orphans
+\$COMPOSE_CMD ps
 EOF
 
 echo

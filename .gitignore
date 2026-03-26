@@ -46,3 +46,6 @@ output/
 *.wav
 *.m4a
 *.log
+
+# Local deployment config
+deploy/pi/local.env
