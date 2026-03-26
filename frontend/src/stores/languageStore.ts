@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
-import { supabase } from '../lib/supabase'
+import { apiJson } from '../lib/api'
 
 export type LanguageCode = 'en' | 'zh-CN'
 
@@ -15,34 +15,16 @@ const detectBrowserLanguage = (): LanguageCode => {
   return candidates.some((value) => value.toLowerCase().startsWith('zh')) ? 'zh-CN' : 'en'
 }
 
-const upsertLanguagePreference = async (userId: string, language: LanguageCode) => {
-  const { error } = await supabase
-    .from('user_preferences')
-    .upsert(
-      {
-        user_id: userId,
-        language,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: 'user_id' }
-    )
-
-  if (error) {
-    throw error
-  }
+const upsertLanguagePreference = async (language: LanguageCode) => {
+  return apiJson<{ language: LanguageCode }>('/api/preferences', {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ language }),
+  })
 }
 
-const loadLanguagePreference = async (userId: string) => {
-  const { data, error } = await supabase
-    .from('user_preferences')
-    .select('language')
-    .eq('user_id', userId)
-    .maybeSingle()
-
-  if (error) {
-    throw error
-  }
-
+const loadLanguagePreference = async () => {
+  const data = await apiJson<{ language: LanguageCode | null }>('/api/preferences')
   return isLanguageCode(data?.language) ? data.language : null
 }
 
@@ -62,10 +44,10 @@ export const useLanguageStore = create<LanguageState>()(
         set({ language })
 
         try {
-          const { data: { user } } = await supabase.auth.getUser()
-          if (user) {
-            await upsertLanguagePreference(user.id, language)
+          if (get().syncing) {
+            return
           }
+          await upsertLanguagePreference(language)
         } catch (error) {
           console.error('Failed to save language preference:', error)
         }
@@ -79,13 +61,13 @@ export const useLanguageStore = create<LanguageState>()(
         set({ syncing: true })
 
         try {
-          const remoteLanguage = await loadLanguagePreference(userId)
+          const remoteLanguage = await loadLanguagePreference()
           if (remoteLanguage) {
             set({ language: remoteLanguage, syncing: false })
             return
           }
 
-          await upsertLanguagePreference(userId, get().language)
+          await upsertLanguagePreference(get().language)
         } catch (error) {
           console.error('Failed to sync language preference:', error)
         } finally {

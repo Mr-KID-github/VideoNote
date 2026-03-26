@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { supabase } from '../lib/supabase'
+import { apiJson } from '../lib/api'
 
 type NoteRow = {
   id: string
@@ -61,23 +61,8 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
     set({ loading: true, error: '' })
 
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        set({ notes: [], loading: false })
-        return
-      }
-
-      const { data, error } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('created_by', user.id)
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        throw error
-      }
-
-      set({ notes: (data as NoteRow[] | null)?.map(mapRow) ?? [], loading: false })
+      const data = await apiJson<NoteRow[]>('/api/notes')
+      set({ notes: data.map(mapRow), loading: false })
     } catch (error) {
       console.error('Failed to load notes:', error)
       set({
@@ -93,17 +78,8 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
     }
 
     try {
-      const { data, error } = await supabase
-        .from('notes')
-        .select('*')
-        .eq('id', id)
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      const note = mapRow(data as NoteRow)
+      const data = await apiJson<NoteRow>(`/api/notes/${id}`)
+      const note = mapRow(data)
       set((state) => ({
         notes: state.notes.some((item) => item.id === note.id) ? state.notes : [note, ...state.notes],
       }))
@@ -118,29 +94,19 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   },
   saveNote: async (title, content, videoUrl) => {
     try {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) {
-        throw new Error('User is not logged in')
-      }
-
-      const { data, error } = await supabase
-        .from('notes')
-        .insert({
-          title,
+      const normalizedTitle = title.trim() || 'Untitled note'
+      const data = await apiJson<NoteRow>('/api/notes', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          title: normalizedTitle,
           content,
           video_url: videoUrl || null,
           source_type: videoUrl ? 'video' : 'file',
           status: 'done',
-          created_by: user.id,
-        })
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      const note = mapRow(data as NoteRow)
+        }),
+      })
+      const note = mapRow(data)
       set((state) => ({
         notes: [note, ...state.notes.filter((item) => item.id !== note.id)],
         error: '',
@@ -156,18 +122,13 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   },
   updateNote: async (id, title, content) => {
     try {
-      const { data, error } = await supabase
-        .from('notes')
-        .update({ title, content, updated_at: new Date().toISOString() })
-        .eq('id', id)
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
-
-      const note = mapRow(data as NoteRow)
+      const normalizedTitle = title.trim() || 'Untitled note'
+      const data = await apiJson<NoteRow>(`/api/notes/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: normalizedTitle, content }),
+      })
+      const note = mapRow(data)
       set((state) => ({
         notes: state.notes.map((item) => (item.id === id ? note : item)),
         error: '',
@@ -183,14 +144,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   },
   deleteNote: async (id) => {
     try {
-      const { error } = await supabase
-        .from('notes')
-        .delete()
-        .eq('id', id)
-
-      if (error) {
-        throw error
-      }
+      await apiJson<void>(`/api/notes/${id}`, { method: 'DELETE' })
 
       set((state) => ({
         notes: state.notes.filter((item) => item.id !== id),

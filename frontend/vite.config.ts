@@ -7,10 +7,6 @@ export default defineConfig({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('@supabase/supabase-js')) {
-            return 'supabase'
-          }
-
           if (
             id.includes('react-syntax-highlighter') ||
             id.includes('/refractor/') ||

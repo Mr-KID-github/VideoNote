@@ -5,10 +5,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
+from app.db import init_db
 
 
 def create_app() -> FastAPI:
-    from app.routers import model_profiles, note
+    from app.routers import auth, model_profiles, note, note_library, preferences
 
     app = FastAPI(
         title="VINote",
@@ -28,6 +29,13 @@ def create_app() -> FastAPI:
     def healthz():
         return {"status": "ok"}
 
+    @app.on_event("startup")
+    def startup():
+        init_db()
+
+    app.include_router(auth.router, prefix="/api")
     app.include_router(note.router, prefix="/api")
+    app.include_router(note_library.router, prefix="/api")
+    app.include_router(preferences.router, prefix="/api")
     app.include_router(model_profiles.router, prefix="/api")
     return app

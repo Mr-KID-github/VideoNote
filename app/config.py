@@ -10,6 +10,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 BASE_DIR = Path(__file__).resolve().parent.parent
+DEFAULT_SQLITE_PATH = BASE_DIR / "data" / "vinote.db"
 
 
 @dataclass
@@ -54,9 +55,13 @@ class Settings:
     data_dir: Path = BASE_DIR / os.getenv("DATA_DIR", "data")
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "output")
 
-    supabase_url: str = os.getenv("SUPABASE_URL", "")
-    supabase_service_role_key: str = os.getenv("SUPABASE_SERVICE_ROLE_KEY", "")
-    supabase_jwt_secret: str = os.getenv("SUPABASE_JWT_SECRET", "")
+    database_url: str = os.getenv("DATABASE_URL", f"sqlite:///{DEFAULT_SQLITE_PATH.as_posix()}")
+    app_jwt_secret: str = os.getenv("APP_JWT_SECRET", "change-me-to-a-long-random-secret")
+    access_token_expire_seconds: int = int(os.getenv("ACCESS_TOKEN_EXPIRE_SECONDS", "604800"))
+    auth_cookie_name: str = os.getenv("AUTH_COOKIE_NAME", "vinote_session")
+    auth_cookie_secure: bool = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
+    auth_cookie_samesite: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
+    auth_cookie_domain: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
 
     model_profile_encryption_key: str = os.getenv("MODEL_PROFILE_ENCRYPTION_KEY", "")
     azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")

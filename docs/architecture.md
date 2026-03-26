@@ -2,91 +2,144 @@
 
 ## Current Scope
 
-The codebase is now organized around a single v1 workflow:
+VINote is currently organized around one core product flow:
 
-1. Authenticate with Supabase.
+1. Sign in with an app-owned email/password account.
 2. Submit a video URL to the FastAPI backend.
 3. Run the note-generation pipeline.
-4. Save the resulting Markdown note into Supabase.
-5. Continue editing the note in the frontend editor.
+4. Save the generated Markdown note in PostgreSQL.
+5. Continue editing the note in the frontend.
 
-Team sharing, nested folders, and public link flows are still present in the schema history, but they are not treated as active product scope in the current UI and service layout.
+Local audio-file generation still exists on the backend, but the browser UI is currently centered on the URL-based workflow.
+
+## Runtime Topology
+
+```text
+Frontend (React + cookie auth)
+        |
+        v
+FastAPI routers
+        |
+        v
+Application services
+  |- AuthService
+  |- NoteService
+  |- ModelProfileService
+  |- Repositories
+        |
+        +--> PostgreSQL
+        +--> yt-dlp / ffmpeg / ffprobe
+        +--> Whisper / Faster-Whisper / Groq / SenseVoice
+        +--> OpenAI-compatible / Anthropic-compatible / Azure OpenAI / Ollama
+        +--> output/ task artifacts
+```
 
 ## Backend Structure
 
 ### API layer
 
-- `main.py`: process entrypoint.
-- `app/__init__.py`: FastAPI app factory and router registration.
-- `app/routers/note.py`: note generation and task polling endpoints.
-- `app/routers/model_profiles.py`: user-managed LLM profile endpoints.
+- `main.py`
+  - process entrypoint
+- `app/__init__.py`
+  - app factory, CORS, startup hooks, router registration
+- `app/routers/auth.py`
+  - sign-up, sign-in, sign-out, current-user endpoints
+- `app/routers/note.py`
+  - generation and task polling endpoints
+- `app/routers/note_library.py`
+  - saved note CRUD endpoints
+- `app/routers/preferences.py`
+  - user preference endpoints
+- `app/routers/model_profiles.py`
+  - model profile CRUD and test endpoints
 
-### Domain services
+### Domain and infrastructure layer
 
-- `app/services/note_service.py`: orchestration only.
-- `app/services/transcription_service.py`: transcriber factory and audio transcription helpers.
-- `app/services/llm_service.py`: runtime LLM config resolution and summarizer factory.
-- `app/services/screenshot_service.py`: screenshot placeholder replacement.
-- `app/services/task_artifact_service.py`: task directories, status files, cached artifacts, and result files.
-- `app/services/auth_service.py`: Supabase JWT decoding.
-- `app/services/model_profile_service.py`: orchestration for model profile selection and default promotion.
-- `app/services/model_profile_repository.py`: encrypted model profile persistence against Supabase.
-- `app/services/model_profile_connection_service.py`: provider-specific connection probes.
+- `app/services/auth_service.py`
+  - password hashing, JWT issue/verify, HttpOnly cookie handling
+- `app/services/note_service.py`
+  - note generation orchestration only
+- `app/services/transcription_service.py`
+  - transcriber selection and transcription flow
+- `app/services/llm_service.py`
+  - model resolution and summarizer selection
+- `app/services/screenshot_service.py`
+  - screenshot placeholder expansion
+- `app/services/task_artifact_service.py`
+  - output artifacts and task status files
+- `app/services/note_repository.py`
+  - note persistence
+- `app/services/preferences_repository.py`
+  - preference persistence
+- `app/services/model_profile_repository.py`
+  - encrypted profile persistence
+- `app/services/model_profile_connection_service.py`
+  - provider connectivity checks
 
-### Infra and model boundaries
+### Database boundary
 
-- `app/downloaders/`: video and audio acquisition.
-- `app/transcribers/`: speech-to-text implementations.
-- `app/llm/`: summarizer adapters and prompts.
-- `app/models/`: request models and pipeline result models.
+- `app/db.py`
+  - SQLAlchemy engine, session, startup initialization
+- `app/db_models.py`
+  - ORM tables for users, notes, preferences, and model profiles
 
-### Design rule
-
-Route handlers should validate inputs and map HTTP concerns only. Pipeline coordination lives in `note_service.py`. Provider-specific details live in the helper services or provider packages.
+Current schema initialization is handled by app startup via SQLAlchemy metadata creation. Alembic is not wired in yet.
 
 ## Frontend Structure
 
 ### App shell
 
-- `frontend/src/App.tsx`: route composition only.
-- `frontend/src/components/Layout/`: shell, header, sidebar, theme switch.
-- `frontend/src/components/Settings/`: settings tab panels and model-profile UI.
-- Route pages are lazy-loaded so the editor and Markdown renderer do not inflate the landing bundle.
+- `frontend/src/App.tsx`
+  - route composition
+- `frontend/src/components/Layout/`
+  - shell, header, sidebar, theme controls
+- `frontend/src/components/Settings/`
+  - settings panels and model-profile UI
 
-### Feature areas
+### Feature pages
 
-- `frontend/src/pages/Home.tsx`: recent-note overview.
-- `frontend/src/pages/Notes.tsx`: note library.
-- `frontend/src/pages/NoteGenerator.tsx`: generation flow.
-- `frontend/src/pages/NoteEditor.tsx`: editing and preview.
-- `frontend/src/pages/Settings.tsx`: auth, model profile, appearance settings.
+- `frontend/src/pages/Home.tsx`
+  - workspace landing page
+- `frontend/src/pages/Notes.tsx`
+  - note library
+- `frontend/src/pages/NoteGenerator.tsx`
+  - generation flow
+- `frontend/src/pages/NoteEditor.tsx`
+  - Markdown editing and preview
+- `frontend/src/pages/Settings.tsx`
+  - appearance, auth, and model profile settings
 
 ### State boundaries
 
-- `frontend/src/stores/authStore.ts`: Supabase session lifecycle.
-- `frontend/src/stores/modelProfileStore.ts`: model profile CRUD and testing.
-- `frontend/src/stores/noteLibraryStore.ts`: persisted notes from Supabase.
-- `frontend/src/stores/noteGenerationStore.ts`: transient pipeline progress state.
-- `frontend/src/stores/themeStore.ts`: theme preference.
+- `frontend/src/stores/authStore.ts`
+  - cookie-auth lifecycle via backend auth endpoints
+- `frontend/src/stores/noteLibraryStore.ts`
+  - saved note CRUD via `/api/notes`
+- `frontend/src/stores/languageStore.ts`
+  - preference sync via `/api/preferences`
+- `frontend/src/stores/modelProfileStore.ts`
+  - model profile CRUD and testing
+- `frontend/src/stores/noteGenerationStore.ts`
+  - transient generation state
 
-### Design rule
+## Auth and Data Ownership
 
-Persistent business data and transient UI workflow state must not share a store unless they change for the same reason. Notes and generation progress are intentionally separated for that reason.
+- VINote owns user accounts directly in PostgreSQL.
+- The backend signs JWT access tokens and stores them in an HttpOnly cookie.
+- The frontend never reads raw auth tokens directly.
+- Provider API keys are stored only on the backend and returned to the browser only as masked hints.
+- Task artifacts remain file-based under `output/`.
 
-## Data Ownership
+## Deployment Shape
 
-- Supabase owns user accounts and saved notes.
-- The FastAPI backend owns the generation pipeline and task artifacts under `output/`.
-- The frontend never stores provider API keys directly; it only sends them to backend model-profile endpoints when the user creates or tests a profile.
+Current deployment target is:
 
-## Canonical Directories
+- `frontend`
+- `backend`
+- `postgres`
 
-- Use root `supabase/` as the canonical backend integration directory.
-- The old `frontend/supabase/` setup has been removed from the tracked architecture and should not receive new changes.
-- Treat `data/` and `output/` as runtime-only directories.
+This is true for local Docker and Raspberry Pi LAN deployment. Supabase is no longer part of the runtime stack.
 
-## Next Cleanup Targets
+## Historical Note
 
-1. Reduce the remaining syntax-highlighter chunk or replace it with a lighter renderer.
-2. Expand automated backend coverage beyond service orchestration into API-level smoke tests.
-3. Decide whether local audio upload is a real browser feature or a desktop-only flow.
+Some historical planning documents under `docs/plans/` still refer to the earlier Supabase-based architecture. Those files describe design history, not the current runtime implementation.

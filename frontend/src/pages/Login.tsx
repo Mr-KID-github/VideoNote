@@ -35,7 +35,7 @@ export function Login() {
       return
     }
 
-    const { error: signUpError, session } = await signUp(email, password)
+    const { error: signUpError, user } = await signUp(email, password)
 
     if (signUpError) {
       setError(signUpError.message)
@@ -45,7 +45,7 @@ export function Login() {
 
     setLoading(false)
 
-    if (session) {
+    if (user) {
       navigate('/')
       return
     }

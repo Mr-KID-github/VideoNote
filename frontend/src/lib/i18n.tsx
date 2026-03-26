@@ -59,7 +59,7 @@ const messages = {
     home: {
       eyebrow: 'Workspace',
       title: 'Keep your video notes in one flow.',
-      body: 'Generate from a video URL, save the result to Supabase, and continue editing in Markdown.',
+      body: 'Generate from a video URL, save the result to your workspace, and continue editing in Markdown.',
       newNote: 'New note',
       viewLibrary: 'View library',
       recentNotes: 'Recent notes',
@@ -99,7 +99,7 @@ const messages = {
       start: 'Start generation',
       generating: 'Generating...',
       browserOnlyError: 'Browser mode does not support direct local file upload yet. Use a video URL for now.',
-      saveFailed: 'Note was generated but could not be saved to Supabase',
+      saveFailed: 'Note was generated but could not be saved to your workspace',
       unknownError: 'Unknown error',
     },
     fileUploader: {
@@ -232,7 +232,7 @@ const messages = {
     home: {
       eyebrow: '工作区',
       title: '把视频笔记放在一条顺畅的工作流里。',
-      body: '从视频链接生成笔记，将结果保存到 Supabase，并继续用 Markdown 编辑。',
+      body: '从视频链接生成笔记，将结果保存到你的工作区，并继续用 Markdown 编辑。',
       newNote: '新建笔记',
       viewLibrary: '查看库',
       recentNotes: '最近笔记',
@@ -272,7 +272,7 @@ const messages = {
       start: '开始生成',
       generating: '生成中...',
       browserOnlyError: '浏览器模式暂不支持直接上传本地文件，请先使用视频链接。',
-      saveFailed: '笔记已生成，但保存到 Supabase 失败',
+      saveFailed: '笔记已生成，但保存到工作区失败',
       unknownError: '未知错误',
     },
     fileUploader: {

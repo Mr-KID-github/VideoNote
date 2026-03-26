@@ -1,676 +1,254 @@
 # VINote
 
-VINote 是一个“视频/音频 -> 结构化 Markdown 笔记”的全栈项目。
+VINote is a full-stack app that turns video or audio into structured Markdown notes.
 
-它包含：
+Current stack:
 
-- FastAPI 后端：下载媒体、转写音频、调用 LLM 生成笔记、管理任务产物
-- Vite + React 前端：登录、生成笔记、笔记库、编辑器、模型配置
-- Supabase：用户认证、笔记存储、模型配置存储、用户偏好
-- MCP Server：允许其他 AI 客户端通过 MCP 调用笔记生成能力
+- Frontend: React 18 + Vite + TypeScript
+- Backend: FastAPI
+- Database: PostgreSQL
+- Auth: FastAPI-issued JWT stored in an HttpOnly cookie
+- Deployment target: local Docker and Raspberry Pi LAN Docker
 
-## 项目架构
+## Architecture
 
-### 1. 整体分层
+High-level flow:
 
 ```text
-Frontend (React + Supabase Auth)
-        |
-        v
-FastAPI Routers
-        |
-        v
-Application Services
-  |- NoteService
-  |- TranscriptionService
-  |- LLMService
-  |- ModelProfileService
-  |- TaskArtifactService
-        |
-        +--> yt-dlp / ffmpeg / ffprobe
-        +--> Whisper / Faster-Whisper / Groq / SenseVoice
-        +--> OpenAI-compatible / Anthropic-compatible / Azure OpenAI / Ollama
-        +--> Supabase REST API
-        +--> output/ task artifacts
+Browser
+  -> Frontend (React)
+  -> FastAPI API
+     -> Auth service
+     -> Note generation pipeline
+     -> Notes / preferences / model profiles repositories
+     -> PostgreSQL
+     -> output/ task artifacts
 ```
 
-### 2. 核心生成流程
+Main backend responsibilities:
 
-1. 前端提交视频链接到 `/api/generate`，或后端直接调用同步接口。
-2. `NoteService` 创建任务目录，下载音频或准备本地音频文件。
-3. `TranscriptionService` 选择转写器，对长音频按时长和文件大小自动分段。
-4. `LLMService` 解析最终使用的模型配置并生成 Markdown 笔记。
-5. 如果 Markdown 内包含 `[[Screenshot:mm:ss]]` 占位符，`ScreenshotService` 会抽帧并回填图片。
-6. `TaskArtifactService` 将状态、转写结果、Markdown 和最终结果写入 `output/`。
-7. 前端轮询 `/api/task/{task_id}`，成功后把笔记保存到 Supabase `notes` 表。
+- `app/routers/`
+  - HTTP routes only
+- `app/services/note_service.py`
+  - note generation orchestration
+- `app/services/auth_service.py`
+  - email/password auth, JWT issue/verify, auth cookie handling
+- `app/services/note_repository.py`
+  - saved note CRUD
+- `app/services/preferences_repository.py`
+  - user preference persistence
+- `app/services/model_profile_repository.py`
+  - encrypted model profile persistence
+- `app/downloaders/`, `app/transcribers/`, `app/llm/`
+  - media acquisition, transcription, summarization
 
-### 3. 当前能力边界
+Main frontend responsibilities:
 
-- 后端支持“视频 URL 生成笔记”和“本地音频文件生成笔记”两条链路。
-- 当前前端页面只开放了视频 URL 生成；本地文件生成功能在浏览器端仍是关闭状态。
-- 模型配置支持按用户保存多个 Provider/Profile，并可设定默认模型。
+- `frontend/src/pages/`
+  - route pages
+- `frontend/src/stores/authStore.ts`
+  - cookie-auth session lifecycle
+- `frontend/src/stores/noteLibraryStore.ts`
+  - note library CRUD via backend API
+- `frontend/src/stores/languageStore.ts`
+  - language preference sync via backend API
+- `frontend/src/stores/modelProfileStore.ts`
+  - model profile management
 
-## 技术栈
+More detail is in [docs/architecture.md](/Users/25772/Desktop/Project/VideoNote/docs/architecture.md).
 
-### Backend
-
-- FastAPI
-- Uvicorn
-- yt-dlp
-- ffmpeg / ffprobe
-- faster-whisper
-- OpenAI SDK
-- Anthropic SDK
-- httpx
-- PyJWT
-- cryptography
-
-### Frontend
-
-- React 18
-- TypeScript
-- Vite
-- Tailwind CSS
-- Zustand
-- React Router
-- Supabase JS
-
-### Infrastructure
-
-- Self-hosted Supabase-compatible stack
-- MCP JSON-RPC server
-
-## 目录结构
+## Repository Layout
 
 ```text
 VINote/
 ├─ app/
-│  ├─ routers/                  # FastAPI 路由
-│  ├─ services/                 # 核心业务编排与集成
-│  ├─ downloaders/              # yt-dlp 下载与抽帧封装
-│  ├─ transcribers/             # 多种 ASR 提供方实现
-│  ├─ llm/                      # LLM Summarizer 与 Prompt
-│  ├─ models/                   # 请求/响应/领域模型
-│  └─ config.py                 # 环境变量与目录配置
+│  ├─ downloaders/
+│  ├─ llm/
+│  ├─ models/
+│  ├─ routers/
+│  ├─ services/
+│  ├─ transcribers/
+│  ├─ config.py
+│  ├─ db.py
+│  └─ db_models.py
 ├─ frontend/
 │  ├─ src/
-│  │  ├─ pages/                 # 页面级路由
-│  │  ├─ components/            # UI 组件
-│  │  ├─ stores/                # Zustand 状态管理
-│  │  └─ lib/                   # API / Supabase / i18n 工具
-│  └─ vite.config.ts
-├─ supabase/
-│  ├─ migrations/              # 本地数据库迁移
-│  └─ start-local.ps1/.sh      # 启动本地 Supabase
-├─ tests/                      # 后端测试
-├─ docs/plans/                 # 设计与实现说明
-├─ data/                       # 下载缓存、分段转写临时文件
-├─ output/                     # 任务结果产物
-├─ main.py                     # FastAPI 启动入口
-├─ mcp_server.py               # MCP 服务入口
-├─ start-dev.ps1              # Windows 一键启动
-└─ AGENTS.md                   # 仓库协作约束
+│  └─ docker/
+├─ deploy/pi/
+├─ docs/
+├─ data/
+├─ output/
+├─ Dockerfile
+├─ docker-compose.yml
+├─ main.py
+└─ mcp_server.py
 ```
 
-## 环境要求
+## Local Development
+
+Requirements:
 
 - Python 3.10+
 - Node.js 18+
 - FFmpeg
-- Docker Desktop（如需整栈容器部署）
-- 可选：Supabase CLI（仅在你想单独使用官方本地开发流时）
+- Docker Desktop or Docker Engine if you want the container stack
 
-如果你使用 Docker 部署，Supabase 认证和数据库能力已经内置在整套应用栈里。
-
-## 快速开始
-
-### 1. 安装后端依赖
+### 1. Backend setup
 
 ```bash
 pip install -r requirements.txt
-```
-
-### 2. 安装前端依赖
-
-```bash
-cd frontend
-npm install
-```
-
-### 3. 配置后端环境变量
-
-复制根目录环境变量模板：
-
-```bash
 cp .env.example .env
+python main.py
 ```
 
-至少需要确认这些变量：
-
-- `LLM_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-- `TRANSCRIBER_TYPE`
-- `GROQ_API_KEY` 或本地 Whisper 相关配置
-
-如果要启用登录态、模型配置管理、受保护接口，还需要：
-
-- `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
-- `SUPABASE_JWT_SECRET`
-- `MODEL_PROFILE_ENCRYPTION_KEY`
-
-### 4. 配置前端环境变量
-
-复制前端模板：
-
-```bash
-cd frontend
-cp .env.example .env.local
-```
-
-前端实际使用以下变量：
-
-- `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
-- `VITE_API_BASE_URL`
-
-本地开发时，`VITE_API_BASE_URL` 可以留空，Vite 会通过代理将 `/api` 转发到 `http://localhost:8900`。
-
-### 5. 启动本地 Supabase（仅非 Docker 本地开发时需要）
-
-```powershell
-.\supabase\start-local.ps1
-```
-
-或：
-
-```bash
-./supabase/start-local.sh
-```
-
-脚本会依次执行：
-
-1. `supabase start`
-2. `supabase db push`
-3. `supabase status`
-
-默认本地端口：
-
-- API: `http://127.0.0.1:55321`
-- Studio: `http://127.0.0.1:55323`
-- DB: `postgresql://postgres:postgres@127.0.0.1:55322/postgres`
-
-### 6. 启动服务
-
-#### 方式 A：分别启动
-
-后端：
+Backend dev with reload:
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8900 --reload
 ```
 
-前端：
+### 2. Frontend setup
 
 ```bash
 cd frontend
+npm install
+cp .env.example .env.local
 npm run dev -- --host 0.0.0.0 --port 3100
 ```
 
-#### 方式 B：Windows 一键启动
+### 3. Required environment variables
 
-```powershell
-.\start-dev.ps1
-```
+Backend:
 
-或：
+- `APP_JWT_SECRET`
+- `DATABASE_URL`
+- `MODEL_PROFILE_ENCRYPTION_KEY`
+- `LLM_API_KEY`
+- `LLM_BASE_URL`
+- `LLM_MODEL`
+- `TRANSCRIBER_TYPE`
 
-```powershell
-.\start-dev.bat
-```
+Frontend runtime:
 
-默认访问地址：
+- `VITE_API_BASE_URL`
 
-- 后端 API / Swagger: `http://127.0.0.1:8900/docs`
-- 前端: `http://localhost:3100`
+For local Vite development, `VITE_API_BASE_URL` can stay empty if you proxy `/api` to the backend.
 
-## Docker 部署
+## Docker
 
-项目现在支持容器化部署，适合两类场景：
+The current Docker stack is intentionally simple:
 
-- 本地快速上手：直接 `docker compose up`
-- 服务器 CI/CD：构建镜像后按环境注入变量，无需为每个环境重新打包前端
+- `postgres`
+- `backend`
+- `frontend`
 
-当前 `docker-compose.yml` 会一并启动：
-
-- VINote 前端
-- VINote 后端
-- 内置 Supabase Postgres
-- Supabase Auth
-- Supabase REST API
-- Supabase 网关
-
-### 1. 准备环境变量
-
-复制根目录模板：
-
-```bash
-cp .env.example .env
-```
-
-Docker 场景下需要重点确认：
-
-- 内置 Supabase：
-  - `POSTGRES_PASSWORD`
-  - `JWT_SECRET`
-  - `ANON_KEY`
-  - `SERVICE_ROLE_KEY`
-  - `SITE_URL`
-  - `API_EXTERNAL_URL`
-- 后端：
-  - `LLM_API_KEY`
-  - `LLM_BASE_URL`
-  - `LLM_MODEL`
-  - `TRANSCRIBER_TYPE`
-  - `MODEL_PROFILE_ENCRYPTION_KEY`
-- 前端运行时：
-  - `VITE_SUPABASE_URL`
-  - `VITE_SUPABASE_ANON_KEY`
-  - `VITE_API_BASE_URL`
-
-说明：
-
-- 如果前端和后端一起通过 `docker-compose.yml` 启动，`VITE_API_BASE_URL` 可以留空，前端容器会通过 Nginx 反向代理访问 `/api`。
-- 默认情况下，前端会通过同域路径 `/supabase` 访问内置 Supabase 网关。
-- 如果前端部署在独立域名/CDN，`VITE_API_BASE_URL` 应设置成你的后端公开地址，例如 `https://api.example.com`。
-
-### 2. 本地启动
+Start everything:
 
 ```bash
 docker compose up --build
 ```
 
-默认端口：
+Default ports:
 
-- 前端: `http://localhost:3100`
-- 后端: `http://localhost:8900`
-- Supabase Gateway: `http://localhost:54321`
-- Postgres: `postgresql://postgres:<POSTGRES_PASSWORD>@127.0.0.1:54322/postgres`
+- Frontend: `http://localhost:3100`
+- Backend: `http://localhost:8900`
+- Postgres: `postgresql://vinote:<password>@127.0.0.1:54322/vinote`
 
-### 3. 后端容器说明
+Notes:
 
-- 使用根目录 [Dockerfile](C:\Users\25772\Desktop\Project\VideoNote\Dockerfile)
-- 基于 `python:3.12-slim`
-- 内置 `ffmpeg`
-- 启动命令为 `uvicorn main:app --host 0.0.0.0 --port 8900`
-- 暴露健康检查端点：`/healthz`
+- The backend container runs database schema initialization automatically on startup.
+- Frontend runtime config is injected at container start, so you do not need a separate frontend build per environment.
+- The Raspberry Pi deployment target uses this same compose stack. Supabase is no longer part of the runtime architecture.
 
-### 4. 前端容器说明
+## Raspberry Pi LAN Deployment
 
-- 使用 [frontend/Dockerfile](C:\Users\25772\Desktop\Project\VideoNote\frontend\Dockerfile)
-- 多阶段构建：`Node` 构建 + `Nginx` 运行
-- 支持 SPA 路由回退
-- 支持 `/api` 代理到后端容器
-- 容器启动时会根据环境变量生成 `runtime-config.js`
+The repository includes LAN deployment helpers under `deploy/pi/`.
 
-这样前端镜像可以“一次构建，多环境复用”，这对 CI/CD 很关键。
+Recommended flow:
 
-### 5. 内置 Supabase 说明
+1. Copy `.env.example` to `.env` in the repo root and fill in real values.
+2. Optional: create `deploy/pi/local.env` from `deploy/pi/local.env.example` with your Pi host, user, and remote directory.
+3. Deploy from your development machine:
 
-容器编排内置的是一套面向 VINote 使用场景的自托管 Supabase 兼容栈：
-
-- `supabase-db`
-- `supabase-auth`
-- `supabase-rest`
-- `supabase-gateway`
-- `supabase-migrate`
-
-应用迁移会在启动时自动执行，用户不需要再手动运行 `supabase db push`。
-
-前端默认通过：
-
-- `/supabase/auth/v1/*`
-- `/supabase/rest/v1/*`
-
-访问认证和数据库接口。
-
-### 6. 数据目录
-
-`docker-compose.yml` 已挂载以下目录，避免容器销毁后丢失产物：
-
-- `./data -> /app/data`
-- `./output -> /app/output`
-- `supabase-db-data` Docker volume -> Supabase Postgres 持久化数据
-
-## 树莓派局域网测试部署
-
-如果你当前的目标是“开发机完成开发后，通过 SSH 部署到公司树莓派，并让局域网同事访问测试环境”，仓库现在已经支持这个流程。
-
-推荐假设：
-
-- 树莓派使用 64 位 Raspberry Pi OS
-- 树莓派已安装 `git`、`docker`、`docker compose`
-- 开发机可以通过 SSH 访问树莓派
-- 树莓派可以访问 GitHub 拉取仓库代码
-
-### 1. 准备树莓派局域网地址
-
-给树莓派准备一个稳定的局域网地址或主机名，例如：
-
-- `192.168.1.50`
-- `vinote.local`
-
-### 2. 调整根目录 `.env`
-
-把根目录 `.env.example` 复制成 `.env` 后，至少确认这些值适合树莓派测试环境：
-
-- `SITE_URL`
-- `API_EXTERNAL_URL`
-- `ADDITIONAL_REDIRECT_URLS`
-- `CORS_ALLOW_ORIGINS`
-- `FRONTEND_PORT`
-- `BACKEND_PORT`
-- `SUPABASE_PORT`
-
-可以参考：
-
-- [deploy/pi/lan.env.example](C:\Users\25772\Desktop\Project\VideoNote\deploy\pi\lan.env.example)
-
-例如树莓派 IP 是 `192.168.1.50`，前端端口保持 `3100`，则常见配置是：
-
-```env
-SITE_URL=http://192.168.1.50:3100
-API_EXTERNAL_URL=http://192.168.1.50:3100/supabase/auth/v1
-ADDITIONAL_REDIRECT_URLS=http://192.168.1.50:3100,http://vinote.local:3100
-CORS_ALLOW_ORIGINS=http://192.168.1.50:3100,http://vinote.local:3100
-```
-
-### 3. 一次性准备树莓派
-
-树莓派上建议先确认：
-
-```bash
-git --version
-docker --version
-docker compose version
-```
-
-如果没有安装 Docker，先按 Raspberry Pi OS 的官方 Docker 安装流程完成初始化。
-
-### 4. 从开发机执行部署
-
-Windows PowerShell：
+PowerShell:
 
 ```powershell
-.\deploy\pi\deploy-pi.ps1 -Host 192.168.1.50 -User pi
+.\deploy\pi\deploy-pi.ps1
 ```
 
-macOS / Linux：
+Bash:
 
 ```bash
-./deploy/pi/deploy-pi.sh 192.168.1.50
+./deploy/pi/deploy-pi.sh
 ```
 
-脚本会自动完成这些动作：
+What the deploy script does:
 
-1. 将当前分支推送到远程仓库
-2. 通过 SSH 登录树莓派
-3. 首次部署时 clone 仓库，后续部署时拉取最新代码
-4. 上传本机根目录 `.env` 到树莓派
-5. 在树莓派上执行 `docker compose up -d --build --remove-orphans`
+- validates required local tools
+- uploads the root `.env`
+- archives the current working tree
+- uploads the archive to the Raspberry Pi over SSH
+- runs `docker compose up -d --build --remove-orphans` remotely
 
-### 5. 常用可选参数
+Pi-specific LAN overrides are documented in [deploy/pi/lan.env.example](/Users/25772/Desktop/Project/VideoNote/deploy/pi/lan.env.example).
 
-PowerShell 脚本支持这些参数：
+## Auth Model
 
-- `-Host`
-- `-User`
-- `-Port`
-- `-Branch`
-- `-RepoUrl`
-- `-RemoteDir`
-- `-EnvFile`
-- `-SkipPush`
+VINote no longer depends on Supabase for browser auth.
 
-例如：
+- `POST /api/auth/sign-up`
+- `POST /api/auth/sign-in`
+- `POST /api/auth/sign-out`
+- `GET /api/auth/me`
 
-```powershell
-.\deploy\pi\deploy-pi.ps1 `
-  -Host 192.168.1.50 `
-  -User pi `
-  -RemoteDir /home/pi/vinote-test
-```
+The backend sets an HttpOnly cookie after sign-in or sign-up. Browser requests use `credentials: 'include'`.
 
-### 6. 局域网访问
+Protected browser data APIs:
 
-部署完成后，公司同事可直接访问：
+- `/api/notes`
+- `/api/preferences`
+- `/api/model-profiles`
 
-- `http://192.168.1.50:3100`
+## API Notes
 
-如果你把 `FRONTEND_PORT` 改成 `80`，则可以直接访问：
-
-- `http://192.168.1.50`
-
-### 7. 当前方案的价值
-
-这套树莓派流程适合你现在这个阶段：
-
-- 不需要先做正式生产环境
-- 不需要先做 Kubernetes、Traefik、外网域名、HTTPS
-- 依旧保留了 Docker 化和后续 CI/CD 的基础
-- 你的团队可以先在公司局域网里稳定验证 1.0 前的测试版本
-
-## CI/CD
-
-仓库已增加 GitHub Actions 工作流：
-
-- [docker.yml](C:\Users\25772\Desktop\Project\VideoNote\.github\workflows\docker.yml)
-
-它会：
-
-- 在 `pull_request` 时校验前后端镜像能否构建
-- 在推送到 `main` 时构建镜像并推送到 `GHCR`
-
-默认发布的镜像名：
-
-- `ghcr.io/<owner>/vinote-backend`
-- `ghcr.io/<owner>/vinote-frontend`
-
-服务器部署的推荐方式：
-
-1. CI 在 `main` 上发布新镜像
-2. 服务器拉取最新镜像
-3. 服务器执行 `docker compose pull && docker compose up -d`
-
-如果你后面要接真正的自动发布，我建议再加一层：
-
-- GitHub Actions 通过 SSH 登录服务器
-- 在服务器上执行 `docker login ghcr.io`
-- 然后执行 `docker compose pull && docker compose up -d`
-
-## 关键后端配置
-
-### 默认 LLM
-
-- `LLM_PROVIDER`: 当前默认值为 `openai-compatible`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-- `LLM_API_KEY`
-
-### 转写器
-
-`TRANSCRIBER_TYPE` 支持：
-
-- `groq`
-- `whisper`
-- `faster-whisper`
-- `sensevoice`
-- `sensevoice-local`
-
-### 长音频分段
-
-这些参数用于避免云端 ASR 413 或超长任务失败：
-
-- `TRANSCRIPTION_CHUNKING_ENABLED`
-- `TRANSCRIPTION_CHUNK_MAX_DURATION_SECONDS`
-- `TRANSCRIPTION_CHUNK_OVERLAP_SECONDS`
-- `TRANSCRIPTION_CHUNK_TARGET_FILE_SIZE_MB`
-- `TRANSCRIPTION_CHUNK_MIN_CORE_SECONDS`
-- `TRANSCRIPTION_CHUNK_BITRATE_KBPS`
-
-## API 概览
-
-### 笔记生成
+Core generation endpoints remain in the FastAPI backend:
 
 - `POST /api/generate`
-  - 异步生成视频笔记
-- `POST /api/generate_sync`
-  - 同步生成视频笔记
-- `POST /api/generate_from_file`
-  - 异步生成本地音频笔记
-- `POST /api/generate_from_file_sync`
-  - 同步生成本地音频笔记
 - `GET /api/task/{task_id}`
-  - 查询任务状态与结果
-- `GET /api/styles`
-  - 查询支持的笔记风格
+- `GET /api/task/{task_id}/result`
 
-### 模型配置
+Saved-note APIs:
 
-这些接口需要有效的 Supabase Access Token：
+- `GET /api/notes`
+- `GET /api/notes/{id}`
+- `POST /api/notes`
+- `PATCH /api/notes/{id}`
+- `DELETE /api/notes/{id}`
 
-- `GET /api/model-profiles`
-- `POST /api/model-profiles`
-- `PATCH /api/model-profiles/{profile_id}`
-- `DELETE /api/model-profiles/{profile_id}`
-- `POST /api/model-profiles/{profile_id}/set-default`
-- `POST /api/model-profiles/test`
-- `POST /api/model-profiles/{profile_id}/test`
+Preference API:
 
-### 同步生成示例
+- `GET /api/preferences`
+- `PATCH /api/preferences`
 
-```bash
-curl -X POST http://127.0.0.1:8900/api/generate_sync \
-  -H "Content-Type: application/json" \
-  -d '{
-    "video_url": "https://www.youtube.com/watch?v=VIDEO_ID",
-    "style": "detailed",
-    "output_language": "zh-CN"
-  }'
-```
+## Verification
 
-### 查询风格示例
+Useful smoke checks:
 
-```bash
-curl http://127.0.0.1:8900/api/styles
-```
-
-## 笔记风格
-
-后端通过 `app/llm/prompts.py` 维护风格映射，实际可用风格以 `/api/styles` 返回为准。
-
-常见风格包括：
-
-- `minimal`
-- `detailed`
-- `academic`
-- `tutorial`
-- `meeting`
-- `xiaohongshu`
-
-## 产物输出
-
-每个任务会在 `output/` 下生成独立目录，通常包含：
-
-- `status.json`
-- `audio_meta.json`
-- `transcript.json`
-- `note.md`
-- `result.json`
-- `.task_id`
-- `screenshots/`（若启用了截图占位符）
-
-`data/` 用于缓存下载音频、视频和长音频分段临时文件。
-
-## Supabase 数据结构
-
-本地迁移位于 `supabase/migrations/`，当前主要包含：
-
-- `001_initial.sql`
-  - `teams`
-  - `team_members`
-  - `folders`
-  - `notes`
-  - `shared_links`
-- `002_model_profiles.sql`
-  - `model_profiles`
-- `003_user_preferences.sql`
-  - `user_preferences`
-
-其中当前前端已明确使用：
-
-- `notes`
-- `model_profiles`
-- `user_preferences`
-- Supabase Auth 用户表
-
-## MCP 支持
-
-项目可作为 MCP Server 被其他 AI 客户端调用。
-
-### 启动方式
-
-```bash
-python mcp_server.py
-```
-
-### MCP 配置示例
-
-```json
-{
-  "mcpServers": {
-    "vinote": {
-      "command": "python",
-      "args": ["/path/to/VINote/mcp_server.py"]
-    }
-  }
-}
-```
-
-### 当前暴露的工具
-
-- `generate_video_note`
-- `list_note_styles`
-
-## 测试与验证
-
-项目已经包含后端测试，不再是“无测试状态”。
-
-建议的检查方式：
-
-```bash
-pytest tests
-```
+- Backend docs: `http://127.0.0.1:8900/docs`
+- Backend health: `GET /healthz`
+- Frontend production build:
 
 ```bash
 cd frontend
 npm run build
 ```
 
-再做一次人工 smoke test：
+- Python import / syntax smoke:
 
-1. 打开 `http://127.0.0.1:8900/docs`
-2. 请求 `GET /api/styles`
-3. 跑一条真实视频生成链路
-4. 检查 `output/` 中的任务产物
+```bash
+python -m compileall app main.py
+```
 
-## 文档现状说明
+## Notes for Historical Docs
 
-这次更新主要修正了以下问题：
-
-- 修复原 `README.md` 中文乱码
-- 修正前端端口为 `3100`，与启动脚本和 Vite 配置一致
-- 补充前端、Supabase、模型配置和认证说明
-- 修正“没有测试”的过期描述
-- 把项目从“纯后端工具”更新为“全栈工作台”的真实状态
+Some older planning documents under `docs/plans/` still describe the earlier Supabase-based design. Treat them as historical planning artifacts, not the current runtime architecture.
