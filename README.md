@@ -343,6 +343,124 @@ docker compose up --build
 - `./output -> /app/output`
 - `supabase-db-data` Docker volume -> Supabase Postgres 持久化数据
 
+## 树莓派局域网测试部署
+
+如果你当前的目标是“开发机完成开发后，通过 SSH 部署到公司树莓派，并让局域网同事访问测试环境”，仓库现在已经支持这个流程。
+
+推荐假设：
+
+- 树莓派使用 64 位 Raspberry Pi OS
+- 树莓派已安装 `git`、`docker`、`docker compose`
+- 开发机可以通过 SSH 访问树莓派
+- 树莓派可以访问 GitHub 拉取仓库代码
+
+### 1. 准备树莓派局域网地址
+
+给树莓派准备一个稳定的局域网地址或主机名，例如：
+
+- `192.168.1.50`
+- `vinote.local`
+
+### 2. 调整根目录 `.env`
+
+把根目录 `.env.example` 复制成 `.env` 后，至少确认这些值适合树莓派测试环境：
+
+- `SITE_URL`
+- `API_EXTERNAL_URL`
+- `ADDITIONAL_REDIRECT_URLS`
+- `CORS_ALLOW_ORIGINS`
+- `FRONTEND_PORT`
+- `BACKEND_PORT`
+- `SUPABASE_PORT`
+
+可以参考：
+
+- [deploy/pi/lan.env.example](C:\Users\25772\Desktop\Project\VideoNote\deploy\pi\lan.env.example)
+
+例如树莓派 IP 是 `192.168.1.50`，前端端口保持 `3100`，则常见配置是：
+
+```env
+SITE_URL=http://192.168.1.50:3100
+API_EXTERNAL_URL=http://192.168.1.50:3100/supabase/auth/v1
+ADDITIONAL_REDIRECT_URLS=http://192.168.1.50:3100,http://vinote.local:3100
+CORS_ALLOW_ORIGINS=http://192.168.1.50:3100,http://vinote.local:3100
+```
+
+### 3. 一次性准备树莓派
+
+树莓派上建议先确认：
+
+```bash
+git --version
+docker --version
+docker compose version
+```
+
+如果没有安装 Docker，先按 Raspberry Pi OS 的官方 Docker 安装流程完成初始化。
+
+### 4. 从开发机执行部署
+
+Windows PowerShell：
+
+```powershell
+.\deploy\pi\deploy-pi.ps1 -Host 192.168.1.50 -User pi
+```
+
+macOS / Linux：
+
+```bash
+./deploy/pi/deploy-pi.sh 192.168.1.50
+```
+
+脚本会自动完成这些动作：
+
+1. 将当前分支推送到远程仓库
+2. 通过 SSH 登录树莓派
+3. 首次部署时 clone 仓库，后续部署时拉取最新代码
+4. 上传本机根目录 `.env` 到树莓派
+5. 在树莓派上执行 `docker compose up -d --build --remove-orphans`
+
+### 5. 常用可选参数
+
+PowerShell 脚本支持这些参数：
+
+- `-Host`
+- `-User`
+- `-Port`
+- `-Branch`
+- `-RepoUrl`
+- `-RemoteDir`
+- `-EnvFile`
+- `-SkipPush`
+
+例如：
+
+```powershell
+.\deploy\pi\deploy-pi.ps1 `
+  -Host 192.168.1.50 `
+  -User pi `
+  -RemoteDir /home/pi/vinote-test
+```
+
+### 6. 局域网访问
+
+部署完成后，公司同事可直接访问：
+
+- `http://192.168.1.50:3100`
+
+如果你把 `FRONTEND_PORT` 改成 `80`，则可以直接访问：
+
+- `http://192.168.1.50`
+
+### 7. 当前方案的价值
+
+这套树莓派流程适合你现在这个阶段：
+
+- 不需要先做正式生产环境
+- 不需要先做 Kubernetes、Traefik、外网域名、HTTPS
+- 依旧保留了 Docker 化和后续 CI/CD 的基础
+- 你的团队可以先在公司局域网里稳定验证 1.0 前的测试版本
+
 ## CI/CD
 
 仓库已增加 GitHub Actions 工作流：
