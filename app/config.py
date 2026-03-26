@@ -31,6 +31,12 @@ class Settings:
     sensevoice_language: str = os.getenv("SENSEVOICE_LANGUAGE", "auto")
     sensevoice_model_size: str = os.getenv("SENSEVOICE_MODEL_SIZE", "small")
     sensevoice_use_gpu: bool = os.getenv("SENSEVOICE_USE_GPU", "false").lower() == "true"
+    transcription_chunking_enabled: bool = os.getenv("TRANSCRIPTION_CHUNKING_ENABLED", "true").lower() == "true"
+    transcription_chunk_max_duration_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_MAX_DURATION_SECONDS", "1200"))
+    transcription_chunk_overlap_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_OVERLAP_SECONDS", "120"))
+    transcription_chunk_target_file_size_mb: int = int(os.getenv("TRANSCRIPTION_CHUNK_TARGET_FILE_SIZE_MB", "20"))
+    transcription_chunk_min_core_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_MIN_CORE_SECONDS", "300"))
+    transcription_chunk_bitrate_kbps: int = int(os.getenv("TRANSCRIPTION_CHUNK_BITRATE_KBPS", "64"))
 
     data_dir: Path = BASE_DIR / os.getenv("DATA_DIR", "data")
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "output")

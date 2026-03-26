@@ -1,17 +1,33 @@
 """
 Audio transcription helpers.
 """
+import math
 import logging
 import subprocess
+import tempfile
+from collections import Counter
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Callable
 
 from app.config import settings
-from app.models.transcript import TranscriptResult
+from app.models.transcript import TranscriptResult, TranscriptSegment
 from app.transcribers.base import Transcriber
 
 logger = logging.getLogger(__name__)
 
 StatusCallback = Callable[[str, str], None]
+
+
+@dataclass
+class ChunkSpec:
+    index: int
+    total: int
+    file_path: Path
+    chunk_start: float
+    chunk_end: float
+    trim_start: float
+    trim_end: float
 
 
 def create_transcriber() -> Transcriber:
@@ -79,6 +95,223 @@ class TranscriptionService:
             logger.warning("[FFprobe] failed to read duration: %s", exc)
             return 0.0
 
+    @staticmethod
+    def _is_local_transcriber() -> bool:
+        return settings.transcriber_type.lower() in {"whisper", "faster-whisper", "sensevoice-local"}
+
+    @staticmethod
+    def _format_seconds(value: float) -> str:
+        total_seconds = max(0, int(round(value)))
+        hours, remainder = divmod(total_seconds, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        if hours:
+            return f"{hours:02d}:{minutes:02d}:{seconds:02d}"
+        return f"{minutes:02d}:{seconds:02d}"
+
+    def _get_effective_chunk_duration(self, *, audio_path: str, duration: float) -> float:
+        configured_max = max(300.0, float(settings.transcription_chunk_max_duration_seconds))
+        target_size_bytes = settings.transcription_chunk_target_file_size_mb * 1024 * 1024
+        file_size_bytes = Path(audio_path).stat().st_size
+        if duration <= 0 or file_size_bytes <= 0 or target_size_bytes <= 0:
+            return configured_max
+
+        bytes_per_second = file_size_bytes / duration
+        if bytes_per_second <= 0:
+            return configured_max
+
+        size_limited_max = (target_size_bytes / bytes_per_second) * 0.9
+        effective_max = min(configured_max, size_limited_max)
+        return max(180.0, effective_max)
+
+    def _build_chunk_specs(self, *, audio_path: str, duration: float, temp_dir: Path) -> list[ChunkSpec]:
+        if not settings.transcription_chunking_enabled or duration <= 0:
+            return []
+
+        max_chunk_duration = self._get_effective_chunk_duration(audio_path=audio_path, duration=duration)
+        target_size_bytes = settings.transcription_chunk_target_file_size_mb * 1024 * 1024
+        file_size_bytes = Path(audio_path).stat().st_size
+        if duration <= max_chunk_duration and file_size_bytes <= target_size_bytes:
+            return []
+
+        overlap = max(15.0, float(settings.transcription_chunk_overlap_seconds))
+        min_core = max(60.0, float(settings.transcription_chunk_min_core_seconds))
+        max_allowed_overlap = max(15.0, (max_chunk_duration - 60.0) / 2)
+        overlap = min(overlap, max_allowed_overlap)
+        core_duration = max_chunk_duration - (2 * overlap)
+
+        if core_duration < min_core:
+            overlap = max(15.0, (max_chunk_duration - min_core) / 2)
+            core_duration = max_chunk_duration - (2 * overlap)
+        if core_duration <= 0:
+            overlap = max(0.0, max_chunk_duration * 0.1)
+            core_duration = max(60.0, max_chunk_duration - (2 * overlap))
+        if core_duration <= 0:
+            return []
+
+        total = max(1, math.ceil(duration / core_duration))
+        chunks: list[ChunkSpec] = []
+        trim_start = 0.0
+
+        for index in range(1, total + 1):
+            trim_end = duration if index == total else min(duration, trim_start + core_duration)
+            chunk_start = max(0.0, trim_start - overlap)
+            chunk_end = min(duration, trim_end + overlap)
+            chunks.append(
+                ChunkSpec(
+                    index=index,
+                    total=total,
+                    file_path=temp_dir / f"chunk_{index:03d}.mp3",
+                    chunk_start=round(chunk_start, 3),
+                    chunk_end=round(chunk_end, 3),
+                    trim_start=round(trim_start, 3),
+                    trim_end=round(trim_end, 3),
+                )
+            )
+            trim_start = trim_end
+
+        logger.info(
+            "[Transcribe] chunking enabled file=%s duration=%.1fs chunks=%s max_chunk=%.1fs overlap=%.1fs",
+            audio_path,
+            duration,
+            len(chunks),
+            max_chunk_duration,
+            overlap,
+        )
+        return chunks
+
+    def _extract_chunk(self, *, audio_path: str, chunk: ChunkSpec) -> None:
+        duration = max(1.0, chunk.chunk_end - chunk.chunk_start)
+        bitrate = max(32, int(settings.transcription_chunk_bitrate_kbps))
+        cmd = [
+            "ffmpeg",
+            "-y",
+            "-hide_banner",
+            "-loglevel",
+            "error",
+            "-ss",
+            f"{chunk.chunk_start:.3f}",
+            "-i",
+            audio_path,
+            "-t",
+            f"{duration:.3f}",
+            "-vn",
+            "-ac",
+            "1",
+            "-ar",
+            "16000",
+            "-b:a",
+            f"{bitrate}k",
+            str(chunk.file_path),
+        ]
+        subprocess.run(cmd, capture_output=True, text=True, check=True)
+
+    @staticmethod
+    def _segment_midpoint(segment: TranscriptSegment) -> float:
+        return (segment.start + segment.end) / 2
+
+    def _merge_chunk_results(self, *, chunk_results: list[tuple[ChunkSpec, TranscriptResult]]) -> TranscriptResult:
+        merged_segments: list[TranscriptSegment] = []
+        languages: list[str] = []
+
+        for chunk, result in chunk_results:
+            if result.language and result.language != "unknown":
+                languages.append(result.language)
+
+            kept_in_chunk = 0
+            for segment in result.segments:
+                absolute_segment = TranscriptSegment(
+                    start=round(chunk.chunk_start + segment.start, 2),
+                    end=round(chunk.chunk_start + segment.end, 2),
+                    text=segment.text.strip(),
+                )
+                midpoint = self._segment_midpoint(absolute_segment)
+                is_last_chunk = chunk.index == chunk.total
+                within_trim_window = chunk.trim_start <= midpoint <= chunk.trim_end
+                if not is_last_chunk and math.isclose(midpoint, chunk.trim_end, abs_tol=0.01):
+                    within_trim_window = False
+                if not within_trim_window:
+                    continue
+
+                absolute_segment.start = max(absolute_segment.start, round(chunk.trim_start, 2))
+                absolute_segment.end = min(absolute_segment.end, round(chunk.trim_end, 2))
+                if absolute_segment.end <= absolute_segment.start or not absolute_segment.text:
+                    continue
+
+                merged_segments.append(absolute_segment)
+                kept_in_chunk += 1
+
+            if kept_in_chunk == 0 and result.full_text.strip():
+                merged_segments.append(
+                    TranscriptSegment(
+                        start=round(chunk.trim_start, 2),
+                        end=round(chunk.trim_end, 2),
+                        text=result.full_text.strip(),
+                    )
+                )
+
+        merged_segments.sort(key=lambda segment: (segment.start, segment.end))
+
+        deduped_segments: list[TranscriptSegment] = []
+        for segment in merged_segments:
+            if not deduped_segments:
+                deduped_segments.append(segment)
+                continue
+
+            previous = deduped_segments[-1]
+            if (
+                segment.text == previous.text
+                and abs(segment.start - previous.start) <= 1.0
+            ):
+                previous.end = max(previous.end, segment.end)
+                continue
+
+            deduped_segments.append(segment)
+
+        full_text = " ".join(segment.text for segment in deduped_segments).strip()
+        language = Counter(languages).most_common(1)[0][0] if languages else None
+        return TranscriptResult(language=language, full_text=full_text, segments=deduped_segments)
+
+    def _transcribe_in_chunks(
+        self,
+        *,
+        audio_path: str,
+        duration: float,
+        update_status: StatusCallback | None = None,
+    ) -> TranscriptResult:
+        with tempfile.TemporaryDirectory(prefix="transcribe_chunks_", dir=settings.data_dir) as temp_dir:
+            chunk_specs = self._build_chunk_specs(
+                audio_path=audio_path,
+                duration=duration,
+                temp_dir=Path(temp_dir),
+            )
+            if not chunk_specs:
+                return self.transcriber.transcribe(file_path=audio_path)
+
+            chunk_results: list[tuple[ChunkSpec, TranscriptResult]] = []
+            for chunk in chunk_specs:
+                self._extract_chunk(audio_path=audio_path, chunk=chunk)
+                logger.info(
+                    "[Transcribe] chunk=%s/%s source=%s range=%s-%s trim=%s-%s",
+                    chunk.index,
+                    chunk.total,
+                    audio_path,
+                    self._format_seconds(chunk.chunk_start),
+                    self._format_seconds(chunk.chunk_end),
+                    self._format_seconds(chunk.trim_start),
+                    self._format_seconds(chunk.trim_end),
+                )
+                if update_status:
+                    update_status(
+                        "transcribing",
+                        (
+                            f"Transcribing chunk {chunk.index}/{chunk.total} "
+                            f"({self._format_seconds(chunk.trim_start)} - {self._format_seconds(chunk.trim_end)})..."
+                        ),
+                    )
+                chunk_results.append((chunk, self.transcriber.transcribe(file_path=str(chunk.file_path))))
+
+            return self._merge_chunk_results(chunk_results=chunk_results)
+
     def transcribe(
         self,
         *,
@@ -92,10 +325,15 @@ class TranscriptionService:
             logger.info("[Transcribe] cache hit for audio=%s", audio_path)
             return cached
 
-        if settings.transcriber_type.lower() in {"whisper", "faster-whisper", "sensevoice-local"} and update_status:
+        if self._is_local_transcriber() and update_status:
             update_status("transcribing", "Loading local speech model...")
 
-        transcript = self.transcriber.transcribe(file_path=audio_path)
+        duration = self.get_audio_duration(audio_path)
+        transcript = self._transcribe_in_chunks(
+            audio_path=audio_path,
+            duration=duration,
+            update_status=update_status,
+        )
         if update_status:
             update_status("transcribing", "Saving transcription...")
 
