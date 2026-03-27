@@ -57,6 +57,8 @@ Main frontend responsibilities:
 
 - `frontend/src/pages/`
   - route pages
+- `frontend/src/pages/Home.tsx`
+  - dashboard-style workspace home with primary actions, system status, developer entry points, and recent notes
 - `frontend/src/stores/authStore.ts`
   - cookie-auth session lifecycle
 - `frontend/src/stores/noteLibraryStore.ts`
@@ -71,6 +73,8 @@ Main frontend responsibilities:
   - model profile management
 
 More detail is in [docs/architecture.md](/Users/25772/Desktop/Project/VideoNote/docs/architecture.md).
+Human-readable usage docs now live in the VitePress docs site under [docs/](/Users/25772/Desktop/Project/VideoNote/docs).
+The docs site is bilingual: Simplified Chinese is the default entry, and English lives under `/en/`.
 
 Media preview behavior:
 
@@ -146,7 +150,17 @@ cp .env.example .env.local
 npm run dev -- --host 0.0.0.0 --port 3100
 ```
 
-### 3. Required environment variables
+### 3. Docs setup
+
+```bash
+cd docs
+npm install
+npm run docs:dev
+```
+
+The convenience launcher `.\start-dev.ps1` now starts backend, frontend, and docs together.
+
+### 4. Required environment variables
 
 Backend:
 
@@ -167,8 +181,11 @@ Backend:
 Frontend runtime:
 
 - `VITE_API_BASE_URL`
+- `VITE_DOCS_BASE_URL`
 
 For local Vite development, `VITE_API_BASE_URL` can stay empty if you proxy `/api` to the backend.
+Set `VITE_DOCS_BASE_URL` when the browser app should open a separately hosted docs site instead of falling back to backend Swagger.
+When the frontend runs on `http://localhost:3100` in local dev, the sidebar `Document` link now defaults to `http://localhost:3101/`.
 
 ## Docker
 
@@ -177,6 +194,7 @@ The current Docker stack is intentionally simple:
 - `postgres`
 - `backend`
 - `frontend`
+- `docs`
 
 Start everything:
 
@@ -188,6 +206,7 @@ Default ports:
 
 - Frontend: `http://localhost:3100`
 - Backend: `http://localhost:8900`
+- Docs: `http://localhost:3101`
 - Postgres: `postgresql://vinote:<password>@127.0.0.1:54322/vinote`
 
 Notes:
@@ -244,6 +263,7 @@ VINote no longer depends on Supabase for browser auth.
 - `POST /api/auth/sign-up`
 - `POST /api/auth/sign-in`
 - `POST /api/auth/sign-out`
+- `GET /api/auth/session`
 - `GET /api/auth/me`
 
 The backend sets an HttpOnly cookie after sign-in or sign-up. Browser requests use `credentials: 'include'`.
@@ -292,7 +312,10 @@ Preference API:
 
 Useful smoke checks:
 
+- Docs site: `cd docs && npm run docs:build`
 - Backend docs: `http://127.0.0.1:8900/docs`
+- Signed-in frontend users can open the left sidebar footer `Document` link. It prefers `VITE_DOCS_BASE_URL` and falls back to backend Swagger when no standalone docs URL is configured.
+- In local dev on port `3100`, the `Document` link prefers the VitePress docs site on `3101`.
 - Backend health: `GET /healthz`
 - Frontend production build:
 

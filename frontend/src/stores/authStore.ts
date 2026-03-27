@@ -8,6 +8,11 @@ export interface AuthUser {
   email: string
 }
 
+interface SessionResponse {
+  authenticated: boolean
+  user: AuthUser | null
+}
+
 interface AuthState {
   user: AuthUser | null
   loading: boolean
@@ -29,15 +34,14 @@ export const useAuthStore = create<AuthState>((set) => ({
   initialized: false,
   initialize: async () => {
     try {
-      const response = await apiFetch('/api/auth/me')
-      if (!response.ok) {
+      const session = await apiJson<SessionResponse>('/api/auth/session')
+      if (!session.authenticated || !session.user) {
         clearUserState()
         set({ user: null, initialized: true })
         return
       }
 
-      const user = await response.json() as AuthUser
-      set({ user, initialized: true })
+      set({ user: session.user, initialized: true })
     } catch {
       clearUserState()
       set({ user: null, initialized: true })

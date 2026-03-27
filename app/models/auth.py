@@ -17,3 +17,8 @@ class AuthCredentials(BaseModel):
 class UserResponse(BaseModel):
     id: str
     email: str
+
+
+class SessionResponse(BaseModel):
+    authenticated: bool
+    user: UserResponse | None = None

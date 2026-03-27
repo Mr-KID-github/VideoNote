@@ -28,6 +28,9 @@ nul
 frontend/.env
 frontend/.env.local
 frontend/.env.*.local
+node_modules/
+docs/.vitepress/cache/
+docs/.vitepress/dist/
 
 # Legacy / local infra leftovers
 frontend/supabase/

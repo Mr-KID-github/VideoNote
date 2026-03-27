@@ -53,13 +53,31 @@ services:
     image: vinote-frontend:local
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL:-}
+      VITE_DOCS_BASE_URL: ${VITE_DOCS_BASE_URL:-}
     depends_on:
       backend:
         condition: service_healthy
+      docs:
+        condition: service_started
     ports:
       - "${FRONTEND_PORT:-3100}:80"
     healthcheck:
       test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/runtime-config.js >/dev/null 2>&1 || exit 1"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  docs:
+    build:
+      context: ./docs
+      dockerfile: Dockerfile
+    image: vinote-docs:local
+    ports:
+      - "${DOCS_PORT:-3101}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -q -O - http://127.0.0.1/ >/dev/null 2>&1 || exit 1"]
       interval: 30s
       timeout: 10s
       retries: 5
