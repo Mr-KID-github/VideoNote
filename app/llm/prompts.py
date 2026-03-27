@@ -1,8 +1,12 @@
 from typing import Literal
 
 OutputLanguage = Literal["en", "zh-CN"]
+SummaryMode = Literal["default", "accurate", "oneshot"]
+
 DEFAULT_OUTPUT_LANGUAGE: OutputLanguage = "zh-CN"
+DEFAULT_SUMMARY_MODE: SummaryMode = "default"
 SUPPORTED_OUTPUT_LANGUAGES: tuple[OutputLanguage, ...] = ("en", "zh-CN")
+SUPPORTED_SUMMARY_MODES: tuple[SummaryMode, ...] = ("default", "accurate", "oneshot")
 
 STYLE_MAP: dict[str, str] = {
     "minimal": "Minimal notes focused on the most important points.",
@@ -11,6 +15,21 @@ STYLE_MAP: dict[str, str] = {
     "tutorial": "Step-by-step tutorial format with key actions and examples.",
     "meeting": "Meeting minutes with agenda, discussion points, decisions, and follow-ups.",
     "xiaohongshu": "Xiaohongshu-style notes with a lighter tone and stronger highlights.",
+}
+
+SUMMARY_MODE_MAP: dict[SummaryMode, dict[OutputLanguage, str]] = {
+    "default": {
+        "zh-CN": "默认模式：短内容一次性整理，长内容自动分段整理后再合并。",
+        "en": "Default mode: short transcripts use one-shot summarization, long transcripts switch to hierarchical summarization.",
+    },
+    "accurate": {
+        "zh-CN": "精确模式：先分段整理，再做全局合并，优先保证覆盖率和稳定性。",
+        "en": "Accurate mode: summarize in chunks first, then merge globally for better coverage and stability.",
+    },
+    "oneshot": {
+        "zh-CN": "一次性模式：把全部转录一次性交给模型，优先保留整体文风。",
+        "en": "One-shot mode: send the full transcript to the model in one pass and preserve a single consistent writing style.",
+    },
 }
 
 STYLE_INSTRUCTIONS: dict[OutputLanguage, dict[str, str]] = {
@@ -71,6 +90,42 @@ Editing principles:
 6. If the video is short, include at least 2 to 3 screenshot markers.""",
 }
 
+CHUNK_SYSTEM_PROMPTS: dict[OutputLanguage, str] = {
+    "zh-CN": """你正在为长视频笔记生成中间整理稿。当前只处理其中一个片段块。
+
+要求：
+- 只基于当前片段块整理，不要推断片段外内容。
+- 输出简洁、结构化的 Markdown 中间稿。
+- 优先提取主题、关键观点、决定、行动项、风险、未决问题。
+- 尽量保留时间点引用，例如 [12:34]。
+- 不要写开场白、结束语，也不要生成最终的 AI 总结段落。""",
+    "en": """You are producing an intermediate working draft for a long transcript.
+
+Requirements:
+- Use only the current chunk and do not infer facts outside it.
+- Return concise, structured Markdown notes.
+- Prioritize topics, key points, decisions, action items, risks, and open questions.
+- Preserve timestamp references when possible, for example [12:34].
+- Do not add greetings, closing remarks, or the final AI Summary section.""",
+}
+
+MERGE_SYSTEM_PROMPTS: dict[OutputLanguage, str] = {
+    "zh-CN": """你正在把多个片段整理稿合并为最终视频笔记。
+
+要求：
+- 合并重复内容，统一结构和措辞。
+- 保留关键决策、行动项、风险和重要细节。
+- 如果不同片段讨论的是同一主题，合并到同一章节。
+- 输出最终 Markdown，不要解释过程。""",
+    "en": """You are merging multiple chunk-level drafts into the final transcript note.
+
+Requirements:
+- Deduplicate overlapping content and unify structure and wording.
+- Preserve important decisions, action items, risks, and key details.
+- Merge related chunks under the same topic when they cover the same subject.
+- Return only the final Markdown output without explaining the process.""",
+}
+
 USER_PROMPT_TEMPLATES: dict[OutputLanguage, str] = {
     "zh-CN": """视频标题：{title}
 
@@ -98,6 +153,84 @@ Add a **## AI Summary** section at the end with 3 to 5 sentences summarizing the
 {extras_instruction}""",
 }
 
+CHUNK_USER_PROMPT_TEMPLATES: dict[OutputLanguage, str] = {
+    "zh-CN": """视频标题：{title}
+
+当前处理第 {chunk_index}/{chunk_total} 个转录片段块。
+
+请基于下面这部分转录生成一份中间整理稿，供后续全局合并使用。
+中间整理稿建议包含：
+- 本片段主题
+- 关键观点
+- 决策 / 结论
+- 行动项 / 待办
+- 风险 / 未决问题
+
+片段转录：
+---
+{segment_text}
+---
+
+{style_instruction}
+{extras_instruction}""",
+    "en": """Video title: {title}
+
+You are processing transcript chunk {chunk_index}/{chunk_total}.
+
+Generate an intermediate draft from this chunk for later global merging.
+The draft should preferably capture:
+- Chunk topics
+- Key points
+- Decisions / conclusions
+- Action items / follow-ups
+- Risks / open questions
+
+Chunk transcript:
+---
+{segment_text}
+---
+
+{style_instruction}
+{extras_instruction}""",
+}
+
+MERGE_USER_PROMPT_TEMPLATES: dict[OutputLanguage, str] = {
+    "zh-CN": """视频标题：{title}
+
+下面是按片段生成的中间整理稿，请把它们合并成最终笔记。
+
+合并要求：
+- 去重并合并相邻主题
+- 保留关键事实、例子、步骤、决策和待办
+- 不要遗漏跨片段出现的重要结论
+- 在笔记末尾增加 **## AI 总结** 章节，用 3 到 5 句话概括核心内容
+
+中间整理稿：
+---
+{chunk_notes_text}
+---
+
+{style_instruction}
+{extras_instruction}""",
+    "en": """Video title: {title}
+
+Below are intermediate chunk drafts. Merge them into the final note.
+
+Requirements:
+- Deduplicate and merge adjacent topics
+- Preserve important facts, examples, steps, decisions, and follow-ups
+- Do not lose important conclusions that appear across chunks
+- Add a **## AI Summary** section at the end with 3 to 5 sentences summarizing the core ideas
+
+Chunk drafts:
+---
+{chunk_notes_text}
+---
+
+{style_instruction}
+{extras_instruction}""",
+}
+
 
 def normalize_output_language(output_language: str | None) -> OutputLanguage:
     if output_language == "en":
@@ -105,9 +238,37 @@ def normalize_output_language(output_language: str | None) -> OutputLanguage:
     return DEFAULT_OUTPUT_LANGUAGE
 
 
+def normalize_summary_mode(summary_mode: str | None) -> SummaryMode:
+    if summary_mode in SUPPORTED_SUMMARY_MODES:
+        return summary_mode
+    return DEFAULT_SUMMARY_MODE
+
+
+def _build_style_instruction(style: str, language: OutputLanguage) -> str:
+    return STYLE_INSTRUCTIONS[language].get(style, STYLE_INSTRUCTIONS[language]["detailed"])
+
+
+def _build_extras_instruction(extras: str | None, language: OutputLanguage) -> str:
+    if not extras:
+        return ""
+    if language == "zh-CN":
+        return f"额外要求：{extras}"
+    return f"Additional requirements: {extras}"
+
+
 def build_system_prompt(output_language: str | None = None) -> str:
     language = normalize_output_language(output_language)
     return SYSTEM_PROMPTS[language]
+
+
+def build_chunk_system_prompt(output_language: str | None = None) -> str:
+    language = normalize_output_language(output_language)
+    return CHUNK_SYSTEM_PROMPTS[language]
+
+
+def build_merge_system_prompt(output_language: str | None = None) -> str:
+    language = normalize_output_language(output_language)
+    return MERGE_SYSTEM_PROMPTS[language]
 
 
 def build_user_prompt(
@@ -118,17 +279,45 @@ def build_user_prompt(
     output_language: str | None = None,
 ) -> str:
     language = normalize_output_language(output_language)
-    style_instruction = STYLE_INSTRUCTIONS[language].get(style, STYLE_INSTRUCTIONS[language]["detailed"])
-    if extras:
-        extras_instruction = (
-            f"额外要求：{extras}" if language == "zh-CN" else f"Additional requirements: {extras}"
-        )
-    else:
-        extras_instruction = ""
-
     return USER_PROMPT_TEMPLATES[language].format(
         title=title,
         segment_text=segment_text,
-        style_instruction=style_instruction,
-        extras_instruction=extras_instruction,
+        style_instruction=_build_style_instruction(style, language),
+        extras_instruction=_build_extras_instruction(extras, language),
+    )
+
+
+def build_chunk_user_prompt(
+    title: str,
+    segment_text: str,
+    chunk_index: int,
+    chunk_total: int,
+    style: str = "detailed",
+    extras: str | None = None,
+    output_language: str | None = None,
+) -> str:
+    language = normalize_output_language(output_language)
+    return CHUNK_USER_PROMPT_TEMPLATES[language].format(
+        title=title,
+        segment_text=segment_text,
+        chunk_index=chunk_index,
+        chunk_total=chunk_total,
+        style_instruction=_build_style_instruction(style, language),
+        extras_instruction=_build_extras_instruction(extras, language),
+    )
+
+
+def build_merge_user_prompt(
+    title: str,
+    chunk_notes_text: str,
+    style: str = "detailed",
+    extras: str | None = None,
+    output_language: str | None = None,
+) -> str:
+    language = normalize_output_language(output_language)
+    return MERGE_USER_PROMPT_TEMPLATES[language].format(
+        title=title,
+        chunk_notes_text=chunk_notes_text,
+        style_instruction=_build_style_instruction(style, language),
+        extras_instruction=_build_extras_instruction(extras, language),
     )

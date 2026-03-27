@@ -9,7 +9,7 @@ from typing import List
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from app.llm.prompts import STYLE_MAP
+from app.llm.prompts import STYLE_MAP, SUMMARY_MODE_MAP
 from app.services.note_service import NoteService
 
 
@@ -33,6 +33,12 @@ class VINoteMCP:
                             "type": "string",
                             "description": "Note style.",
                             "default": "detailed",
+                        },
+                        "summary_mode": {
+                            "type": "string",
+                            "description": "Summarization strategy.",
+                            "enum": ["default", "accurate", "oneshot"],
+                            "default": "default",
                         },
                         "extras": {
                             "type": "string",
@@ -61,6 +67,7 @@ class VINoteMCP:
         self,
         video_url: str,
         style: str = "detailed",
+        summary_mode: str = "default",
         extras: str | None = None,
         output_language: str | None = None,
     ) -> dict:
@@ -73,6 +80,7 @@ class VINoteMCP:
                 video_url=video_url,
                 task_id=task_id,
                 style=style,
+                summary_mode=summary_mode,
                 extras=extras,
                 output_language=output_language,
             )
@@ -83,6 +91,7 @@ class VINoteMCP:
                 "duration": result.audio_meta.duration,
                 "platform": result.audio_meta.platform,
                 "video_id": result.audio_meta.video_id,
+                "summary_mode": result.summary_mode,
                 "markdown": result.markdown,
                 "output_path": result.output_dir,
             }
@@ -92,7 +101,11 @@ class VINoteMCP:
 
     def list_styles(self) -> dict:
         styles = [{"value": key, "description": value} for key, value in STYLE_MAP.items()]
-        return {"styles": styles}
+        summary_modes = [
+            {"value": key, "description": descriptions["en"]}
+            for key, descriptions in SUMMARY_MODE_MAP.items()
+        ]
+        return {"styles": styles, "summary_modes": summary_modes}
 
 
 SERVER = VINoteMCP()
@@ -117,6 +130,7 @@ def handle_jsonrpc(request: dict) -> dict:
             result = SERVER.generate_note(
                 video_url=arguments.get("video_url"),
                 style=arguments.get("style", "detailed"),
+                summary_mode=arguments.get("summary_mode", "default"),
                 extras=arguments.get("extras"),
                 output_language=arguments.get("output_language"),
             )

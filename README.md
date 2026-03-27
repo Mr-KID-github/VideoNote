@@ -42,6 +42,15 @@ Main backend responsibilities:
 - `app/downloaders/`, `app/transcribers/`, `app/llm/`
   - media acquisition, transcription, summarization
 
+Summary modes:
+
+- `default`
+  - one-shot for shorter transcripts, hierarchical chunk-first summarization for longer transcripts
+- `accurate`
+  - always summarizes in chunks first, then merges the chunk drafts into the final note
+- `oneshot`
+  - always sends the full transcript to the model in one pass
+
 Main frontend responsibilities:
 
 - `frontend/src/pages/`
@@ -122,11 +131,17 @@ Backend:
 
 - `APP_JWT_SECRET`
 - `DATABASE_URL`
+- `SHARE_BASE_URL` (optional, overrides the LAN/public base URL used in generated share links)
 - `MODEL_PROFILE_ENCRYPTION_KEY`
 - `LLM_API_KEY`
 - `LLM_BASE_URL`
 - `LLM_MODEL`
 - `TRANSCRIBER_TYPE`
+- `SUMMARY_DEFAULT_MAX_CHARS`
+- `SUMMARY_DEFAULT_MAX_SEGMENTS`
+- `SUMMARY_CHUNK_MAX_CHARS`
+- `SUMMARY_CHUNK_MAX_SEGMENTS`
+- `SUMMARY_CHUNK_OVERLAP_SEGMENTS`
 
 Frontend runtime:
 
@@ -217,6 +232,8 @@ Core generation endpoints remain in the FastAPI backend:
 - `GET /api/task/{task_id}`
 - `GET /api/task/{task_id}/result`
 
+Generation requests accept an optional `summary_mode` field with `default`, `accurate`, or `oneshot`.
+
 Saved-note APIs:
 
 - `GET /api/notes`
@@ -224,6 +241,14 @@ Saved-note APIs:
 - `POST /api/notes`
 - `PATCH /api/notes/{id}`
 - `DELETE /api/notes/{id}`
+- `GET /api/notes/{id}/share`
+- `POST /api/notes/{id}/share`
+- `DELETE /api/notes/{id}/share`
+
+Public share endpoints:
+
+- `GET /share/{token}`
+- `GET /api/public/notes/{token}`
 
 Preference API:
 

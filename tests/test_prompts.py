@@ -1,6 +1,13 @@
 import unittest
 
-from app.llm.prompts import build_system_prompt, build_user_prompt, normalize_output_language
+from app.llm.prompts import (
+    build_chunk_user_prompt,
+    build_merge_user_prompt,
+    build_system_prompt,
+    build_user_prompt,
+    normalize_output_language,
+    normalize_summary_mode,
+)
 
 
 class PromptBuilderTest(unittest.TestCase):
@@ -8,6 +15,12 @@ class PromptBuilderTest(unittest.TestCase):
         self.assertEqual(normalize_output_language(None), "zh-CN")
         self.assertEqual(normalize_output_language("unexpected"), "zh-CN")
         self.assertEqual(normalize_output_language("en"), "en")
+
+    def test_normalize_summary_mode_defaults_to_default(self):
+        self.assertEqual(normalize_summary_mode(None), "default")
+        self.assertEqual(normalize_summary_mode("unexpected"), "default")
+        self.assertEqual(normalize_summary_mode("accurate"), "accurate")
+        self.assertEqual(normalize_summary_mode("oneshot"), "oneshot")
 
     def test_build_system_prompt_changes_with_language(self):
         chinese_prompt = build_system_prompt("zh-CN")
@@ -36,6 +49,26 @@ class PromptBuilderTest(unittest.TestCase):
         self.assertIn("额外要求：保留术语", chinese_prompt)
         self.assertIn("## AI Summary", english_prompt)
         self.assertIn("Additional requirements: Keep terms", english_prompt)
+
+    def test_chunk_and_merge_prompts_include_processing_context(self):
+        chunk_prompt = build_chunk_user_prompt(
+            title="Demo",
+            segment_text="00:00 - Hello",
+            chunk_index=2,
+            chunk_total=4,
+            style="meeting",
+            output_language="en",
+        )
+        merge_prompt = build_merge_user_prompt(
+            title="Demo",
+            chunk_notes_text="## Chunk Draft 1\n- hello",
+            style="meeting",
+            output_language="en",
+        )
+
+        self.assertIn("chunk 2/4", chunk_prompt)
+        self.assertIn("Chunk drafts:", merge_prompt)
+        self.assertIn("AI Summary", merge_prompt)
 
 
 if __name__ == "__main__":
