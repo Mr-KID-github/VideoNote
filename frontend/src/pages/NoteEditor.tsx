@@ -4,14 +4,146 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { MarkdownContent } from '../components/Markdown/MarkdownContent'
 import { KeyMomentsRail } from '../components/Notes/KeyMomentsRail'
 import { VideoReferencePanel } from '../components/Notes/VideoReferencePanel'
-import { findActiveKeyMoment, parseKeyMoments, type KeyMoment } from '../lib/markdownKeyMoments'
+import { findActiveKeyMoment, type KeyMoment } from '../lib/markdownKeyMoments'
 import { useI18n } from '../lib/i18n'
+import { resolveContentUrl } from '../lib/videoLinks'
 import { type NoteShareRecord, useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 type WorkspaceMode = 'write' | 'split' | 'preview'
 
+const HEADING_RE = /^(#{1,6})\s+(.*)$/
+const TIMESTAMP_LINK_RE = /\[(\d{1,2}:\d{2})(?:-\d{1,2}:\d{2})?\]\(([^)]+)\)/
+const IMAGE_RE = /!\[[^\]]*]\(([^)\s]+)(?:\s+"[^"]*")?\)/
+
 function clamp(value: number, min: number, max: number) {
   return Math.min(Math.max(value, min), max)
+}
+
+function deriveKeyMoments(content: string): KeyMoment[] {
+  const lines = content.split(/\r?\n/)
+  const sections: Array<{ level: number; heading: string; body: string[] }> = []
+  let current: { level: number; heading: string; body: string[] } | null = null
+
+  for (const line of lines) {
+    const headingMatch = line.match(HEADING_RE)
+    if (headingMatch) {
+      if (current) {
+        sections.push(current)
+      }
+      current = {
+        level: headingMatch[1].length,
+        heading: headingMatch[2],
+        body: [],
+      }
+      continue
+    }
+
+    if (current) {
+      current.body.push(line)
+    }
+  }
+
+  if (current) {
+    sections.push(current)
+  }
+
+  return sections.flatMap((section) => {
+    if (section.level < 2) {
+      return []
+    }
+
+    const timestampMatch = findTimestamp(section.heading, section.body)
+    if (!timestampMatch) {
+      return []
+    }
+
+    const plainHeading = stripMarkdown(section.heading)
+    return [{
+      anchorId: slugifyHeading(plainHeading),
+      title: plainHeading.replace(timestampMatch.label, '').trim(),
+      timestampLabel: timestampMatch.label,
+      seconds: timestampMatch.seconds,
+      imageUrl: findImage(section.body),
+      excerpt: findExcerpt(section.body),
+      level: section.level,
+    }]
+  })
+}
+
+function findTimestamp(heading: string, body: string[]) {
+  const headingMatch = heading.match(TIMESTAMP_LINK_RE)
+  if (headingMatch) {
+    return {
+      label: headingMatch[1],
+      seconds: parseSeconds(headingMatch[1], headingMatch[2]),
+    }
+  }
+
+  for (const line of body) {
+    const lineMatch = line.match(TIMESTAMP_LINK_RE)
+    if (lineMatch) {
+      return {
+        label: lineMatch[1],
+        seconds: parseSeconds(lineMatch[1], lineMatch[2]),
+      }
+    }
+  }
+
+  return null
+}
+
+function findImage(lines: string[]) {
+  for (const line of lines) {
+    const imageMatch = line.match(IMAGE_RE)
+    if (imageMatch) {
+      return resolveContentUrl(imageMatch[1])
+    }
+  }
+
+  return undefined
+}
+
+function findExcerpt(lines: string[]) {
+  for (const line of lines) {
+    if (!line.trim() || IMAGE_RE.test(line)) {
+      continue
+    }
+
+    const excerpt = stripMarkdown(line)
+    if (excerpt) {
+      return excerpt.length > 140 ? `${excerpt.slice(0, 137)}...` : excerpt
+    }
+  }
+
+  return undefined
+}
+
+function parseSeconds(label: string, href: string) {
+  const queryMatch = href.match(/[?&](?:t|start|time_continue)=(\d+)/)
+  if (queryMatch) {
+    return Number.parseInt(queryMatch[1], 10)
+  }
+
+  const [minutes, seconds] = label.split(':').map((value) => Number.parseInt(value, 10))
+  return minutes * 60 + seconds
+}
+
+function stripMarkdown(text: string) {
+  return text
+    .replace(TIMESTAMP_LINK_RE, '$1')
+    .replace(/\[([^\]]+)]\([^)]+\)/g, '$1')
+    .replace(/[*_`>#]/g, ' ')
+    .replace(/!\[[^\]]*]\([^)]+\)/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+}
+
+function slugifyHeading(text: string) {
+  return text
+    .trim()
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}\s-]/gu, '')
+    .replace(/\s+/g, '-')
 }
 
 export function NoteEditor() {
@@ -37,8 +169,8 @@ export function NoteEditor() {
   const [error, setError] = useState('')
   const [currentTimestamp, setCurrentTimestamp] = useState(0)
   const [jumpRequestId, setJumpRequestId] = useState(0)
+  const [keyMoments, setKeyMoments] = useState<KeyMoment[]>([])
 
-  const keyMoments = parseKeyMoments(content)
   const activeMoment = findActiveKeyMoment(keyMoments, currentTimestamp)
   const localMediaUrl = id && taskId ? `/api/notes/${id}/media` : undefined
   const splitLabel = locale.startsWith('zh') ? '对照' : 'Split'
@@ -98,6 +230,10 @@ export function NoteEditor() {
       active = false
     }
   }, [copy.noteEditor.missingId, copy.noteEditor.notFound, getShareLink, id, loadNoteById])
+
+  useEffect(() => {
+    setKeyMoments(deriveKeyMoments(content))
+  }, [content])
 
   const handleSave = async () => {
     if (!id) {
