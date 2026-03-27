@@ -27,3 +27,25 @@ class NoteCreateRequest(BaseModel):
 class NoteUpdateRequest(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     content: str = ""
+
+
+class NoteShareRecord(BaseModel):
+    note_id: str
+    title: str
+    share_enabled: bool
+    share_token: str | None = None
+    share_created_at: datetime | None = None
+
+
+class NoteShareResponse(NoteShareRecord):
+    share_url: str | None = None
+
+
+class PublicSharedNoteResponse(BaseModel):
+    title: str
+    content: str
+    video_url: str | None = None
+    source_type: str | None = None
+    created_at: datetime
+    updated_at: datetime
+    share_created_at: datetime | None = None
