@@ -1,14 +1,16 @@
 """
-LLM 抽象基类
+LLM abstraction base class.
 """
 from abc import ABC, abstractmethod
-from typing import List
+from typing import Callable, List
 
 from app.models.transcript import TranscriptSegment
 
+SummaryProgressCallback = Callable[[str], None]
+
 
 class LLMSummarizer(ABC):
-    """LLM 总结器基类"""
+    """Base interface for transcript-to-note summarizers."""
 
     @abstractmethod
     def summarize(
@@ -16,16 +18,10 @@ class LLMSummarizer(ABC):
         title: str,
         segments: List[TranscriptSegment],
         style: str = "detailed",
+        summary_mode: str = "default",
         extras: str | None = None,
         output_language: str = "zh-CN",
+        progress_callback: SummaryProgressCallback | None = None,
     ) -> str:
-        """
-        将转写结果总结为结构化 Markdown 笔记
-
-        :param title: 视频标题
-        :param segments: 转写分段
-        :param style: 笔记风格
-        :param extras: 额外提示词
-        :return: Markdown 格式的笔记
-        """
+        """Convert transcript segments into structured Markdown notes."""
         ...

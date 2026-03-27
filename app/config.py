@@ -51,6 +51,11 @@ class Settings:
     transcription_chunk_target_file_size_mb: int = int(os.getenv("TRANSCRIPTION_CHUNK_TARGET_FILE_SIZE_MB", "20"))
     transcription_chunk_min_core_seconds: int = int(os.getenv("TRANSCRIPTION_CHUNK_MIN_CORE_SECONDS", "300"))
     transcription_chunk_bitrate_kbps: int = int(os.getenv("TRANSCRIPTION_CHUNK_BITRATE_KBPS", "64"))
+    summary_default_max_chars: int = int(os.getenv("SUMMARY_DEFAULT_MAX_CHARS", "18000"))
+    summary_default_max_segments: int = int(os.getenv("SUMMARY_DEFAULT_MAX_SEGMENTS", "180"))
+    summary_chunk_max_chars: int = int(os.getenv("SUMMARY_CHUNK_MAX_CHARS", "12000"))
+    summary_chunk_max_segments: int = int(os.getenv("SUMMARY_CHUNK_MAX_SEGMENTS", "120"))
+    summary_chunk_overlap_segments: int = int(os.getenv("SUMMARY_CHUNK_OVERLAP_SEGMENTS", "5"))
 
     data_dir: Path = BASE_DIR / os.getenv("DATA_DIR", "data")
     output_dir: Path = BASE_DIR / os.getenv("OUTPUT_DIR", "output")
@@ -62,6 +67,7 @@ class Settings:
     auth_cookie_secure: bool = os.getenv("AUTH_COOKIE_SECURE", "false").lower() == "true"
     auth_cookie_samesite: str = os.getenv("AUTH_COOKIE_SAMESITE", "lax")
     auth_cookie_domain: str = os.getenv("AUTH_COOKIE_DOMAIN", "")
+    share_base_url: str = os.getenv("SHARE_BASE_URL", "").strip()
 
     model_profile_encryption_key: str = os.getenv("MODEL_PROFILE_ENCRYPTION_KEY", "")
     azure_openai_api_version: str = os.getenv("AZURE_OPENAI_API_VERSION", "2024-10-21")

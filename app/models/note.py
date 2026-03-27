@@ -10,12 +10,14 @@ from app.models.audio import AudioDownloadResult
 from app.models.transcript import TranscriptResult
 
 OutputLanguage = Literal["en", "zh-CN"]
+SummaryMode = Literal["default", "accurate", "oneshot"]
 
 
 class NoteRequest(BaseModel):
     video_url: str
     platform: str = "auto"
     style: Optional[str] = "detailed"
+    summary_mode: SummaryMode = "default"
     extras: Optional[str] = None
     output_language: Optional[OutputLanguage] = None
     model_profile_id: Optional[str] = None
@@ -28,6 +30,7 @@ class LocalFileRequest(BaseModel):
     file_path: str
     title: Optional[str] = None
     style: Optional[str] = "meeting"
+    summary_mode: SummaryMode = "default"
     extras: Optional[str] = None
     output_language: Optional[OutputLanguage] = None
     model_profile_id: Optional[str] = None
@@ -43,6 +46,7 @@ class NoteResponse(BaseModel):
     duration: float
     platform: str
     video_id: str
+    summary_mode: SummaryMode = "default"
 
 
 class TaskStatusResponse(BaseModel):
@@ -57,4 +61,5 @@ class NoteResult:
     markdown: str
     transcript: TranscriptResult
     audio_meta: AudioDownloadResult
+    summary_mode: SummaryMode = "default"
     output_dir: str | None = None

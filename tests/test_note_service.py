@@ -52,12 +52,22 @@ class FakeSummarizer:
     def __init__(self):
         self.calls: list[dict] = []
 
-    def summarize(self, title, segments, style="detailed", extras=None, output_language="zh-CN"):
+    def summarize(
+        self,
+        title,
+        segments,
+        style="detailed",
+        summary_mode="default",
+        extras=None,
+        output_language="zh-CN",
+        progress_callback=None,
+    ):
         self.calls.append(
             {
                 "title": title,
                 "segments": segments,
                 "style": style,
+                "summary_mode": summary_mode,
                 "extras": extras,
                 "output_language": output_language,
             }
@@ -114,6 +124,7 @@ class NoteServiceTest(unittest.TestCase):
                 video_url="https://example.com/video",
                 task_id="task-1",
                 style="detailed",
+                summary_mode="accurate",
                 output_language="en",
             )
 
@@ -121,6 +132,7 @@ class NoteServiceTest(unittest.TestCase):
             self.assertEqual(len(transcription_service.calls), 1)
             self.assertEqual(len(llm_service.calls), 1)
             self.assertEqual(llm_service.summarizer.calls[0]["output_language"], "en")
+            self.assertEqual(llm_service.summarizer.calls[0]["summary_mode"], "accurate")
             self.assertEqual(len(screenshot_service.calls), 1)
             self.assertTrue(result.output_dir)
             self.assertIn("![Screenshot 00:01]", result.markdown)
@@ -130,6 +142,7 @@ class NoteServiceTest(unittest.TestCase):
 
             self.assertEqual(saved_status["status"], "success")
             self.assertEqual(saved_result["title"], "Demo Note")
+            self.assertEqual(saved_result["summary_mode"], "accurate")
             self.assertTrue(Path(saved_result["output_path"]).exists())
 
 

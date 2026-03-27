@@ -10,6 +10,7 @@ import { useNoteGenerationStore } from '../stores/noteGenerationStore'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 type TaskResponse = { task_id: string }
+type SummaryMode = 'default' | 'accurate' | 'oneshot'
 type TaskStatusResponse = {
   status: string
   message: string
@@ -22,6 +23,7 @@ type TaskStatusResponse = {
 export function NoteGenerator() {
   const [videoUrl, setVideoUrl] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [summaryMode, setSummaryMode] = useState<SummaryMode>('default')
   const [, setTaskId] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const { copy, language } = useI18n()
@@ -105,6 +107,7 @@ export function NoteGenerator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           video_url: videoUrl,
+          summary_mode: summaryMode,
           output_language: language,
           model_profile_id: selectedProfileId || undefined,
         }),
@@ -129,6 +132,43 @@ export function NoteGenerator() {
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
   const defaultProfile = profiles.find((profile) => profile.isDefault)
+  const summaryModeOptions: Array<{ value: SummaryMode; label: string; description: string }> =
+    language === 'zh-CN'
+      ? [
+          {
+            value: 'default',
+            label: '默认总结模式',
+            description: '短内容一次性整理，长内容自动切换到分段整理后再合并。',
+          },
+          {
+            value: 'accurate',
+            label: '精确总结模式',
+            description: '先分段提炼，再统一整合，优先保证覆盖率和稳定性。',
+          },
+          {
+            value: 'oneshot',
+            label: '一次性总结模式',
+            description: '把全部转录一次性交给模型，优先保留统一文风。',
+          },
+        ]
+      : [
+          {
+            value: 'default',
+            label: 'Default summary mode',
+            description: 'Short transcripts use one-shot summarization; long transcripts switch to chunk-first merging automatically.',
+          },
+          {
+            value: 'accurate',
+            label: 'Accurate summary mode',
+            description: 'Summarize in chunks first, then merge globally for better coverage and stability.',
+          },
+          {
+            value: 'oneshot',
+            label: 'One-shot summary mode',
+            description: 'Send the whole transcript in one pass and preserve a single writing style.',
+          },
+        ]
+  const selectedSummaryMode = summaryModeOptions.find((option) => option.value === summaryMode)
 
   return (
     <div className="max-w-2xl mx-auto p-8">
@@ -172,6 +212,26 @@ export function NoteGenerator() {
               : defaultProfile
                 ? copy.generator.activeModelDefault(defaultProfile.name, defaultProfile.modelName)
                 : copy.generator.activeModelBackend}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
+          <label className="block text-sm font-medium mb-2">
+            {language === 'zh-CN' ? '总结模式' : 'Summary mode'}
+          </label>
+          <select
+            value={summaryMode}
+            onChange={(event) => setSummaryMode(event.target.value as SummaryMode)}
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
+          >
+            {summaryModeOptions.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {selectedSummaryMode?.description}
           </p>
         </div>
 

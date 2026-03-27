@@ -10,7 +10,7 @@ from typing import Optional
 from app.config import settings
 from app.downloaders.base import Downloader
 from app.downloaders.ytdlp_downloader import YtdlpDownloader
-from app.llm.prompts import normalize_output_language
+from app.llm.prompts import normalize_output_language, normalize_summary_mode
 from app.models.audio import AudioDownloadResult
 from app.models.note import NoteResult
 from app.services.llm_service import LLMService
@@ -59,6 +59,7 @@ class NoteService:
         task_id: str,
         platform: str = "auto",
         style: str = "detailed",
+        summary_mode: str = "default",
         extras: Optional[str] = None,
         output_language: str | None = None,
         model_profile_id: Optional[str] = None,
@@ -84,6 +85,7 @@ class NoteService:
                 task_dir=task_dir,
                 audio_meta=audio_meta,
                 style=style,
+                summary_mode=summary_mode,
                 extras=extras,
                 output_language=output_language,
                 model_profile_id=model_profile_id,
@@ -107,6 +109,7 @@ class NoteService:
         task_id: str,
         title: Optional[str] = None,
         style: str = "meeting",
+        summary_mode: str = "default",
         extras: Optional[str] = None,
         output_language: str | None = None,
         model_profile_id: Optional[str] = None,
@@ -134,6 +137,7 @@ class NoteService:
                 task_dir=task_dir,
                 audio_meta=audio_meta,
                 style=style,
+                summary_mode=summary_mode,
                 extras=extras,
                 output_language=output_language,
                 model_profile_id=model_profile_id,
@@ -180,6 +184,7 @@ class NoteService:
         task_dir: Path,
         audio_meta: AudioDownloadResult,
         style: str,
+        summary_mode: str,
         extras: str | None,
         output_language: str | None,
         model_profile_id: str | None,
@@ -192,6 +197,7 @@ class NoteService:
         step_timings: dict[str, float],
     ) -> NoteResult:
         resolved_output_language = normalize_output_language(output_language)
+        resolved_summary_mode = normalize_summary_mode(summary_mode)
         final_dir = self.artifact_service.finalize_task_dir(task_dir, audio_meta.title, task_id)
 
         try:
@@ -218,8 +224,14 @@ class NoteService:
                 title=audio_meta.title,
                 segments=transcript.segments,
                 style=style,
+                summary_mode=resolved_summary_mode,
                 extras=extras,
                 output_language=resolved_output_language,
+                progress_callback=lambda message: self.artifact_service.update_status(
+                    final_dir,
+                    "summarizing",
+                    message,
+                ),
             )
             step_timings["summarize"] = time.time() - step_start
 
@@ -238,6 +250,7 @@ class NoteService:
                 markdown=markdown,
                 transcript=transcript,
                 audio_meta=audio_meta,
+                summary_mode=resolved_summary_mode,
                 output_dir=str(final_dir),
             )
             self.artifact_service.save_result(final_dir, result)

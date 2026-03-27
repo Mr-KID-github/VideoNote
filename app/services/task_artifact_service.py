@@ -97,6 +97,7 @@ class TaskArtifactService:
                 "platform": result.audio_meta.platform,
                 "video_id": result.audio_meta.video_id,
                 "cover_url": result.audio_meta.cover_url,
+                "summary_mode": result.summary_mode,
                 "output_path": result.output_dir,
             },
         )

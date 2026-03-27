@@ -10,14 +10,25 @@ from openai import OpenAI
 
 from app.config import settings
 from app.llm.anthropic_compat import post_anthropic_compatible
-from app.llm.base import LLMSummarizer
-from app.llm.prompts import build_system_prompt, build_user_prompt
+from app.llm.base import LLMSummarizer, SummaryProgressCallback
+from app.llm.prompts import (
+    build_chunk_system_prompt,
+    build_chunk_user_prompt,
+    build_merge_system_prompt,
+    build_merge_user_prompt,
+    build_system_prompt,
+    build_user_prompt,
+    normalize_summary_mode,
+)
 from app.models.transcript import TranscriptSegment
 
 logger = logging.getLogger(__name__)
 
 
 class _BasePromptLLM(LLMSummarizer):
+    def _complete(self, *, system_prompt: str, user_prompt: str) -> str:
+        raise NotImplementedError
+
     @staticmethod
     def _format_time(seconds: float) -> str:
         td = timedelta(seconds=int(seconds))
@@ -45,6 +56,162 @@ class _BasePromptLLM(LLMSummarizer):
             output_language=output_language,
         )
 
+    @staticmethod
+    def _estimate_segment_size(segment: TranscriptSegment) -> int:
+        return len(segment.text) + 16
+
+    def _chunk_segments(self, segments: List[TranscriptSegment]) -> list[list[TranscriptSegment]]:
+        if not segments:
+            return [segments]
+
+        max_chars = max(2000, int(settings.summary_chunk_max_chars))
+        max_segments = max(1, int(settings.summary_chunk_max_segments))
+        overlap = max(0, int(settings.summary_chunk_overlap_segments))
+        chunks: list[list[TranscriptSegment]] = []
+        current: list[TranscriptSegment] = []
+        current_chars = 0
+
+        for segment in segments:
+            segment_size = self._estimate_segment_size(segment)
+            exceeds_limits = current and (
+                len(current) >= max_segments or current_chars + segment_size > max_chars
+            )
+            if exceeds_limits:
+                chunks.append(current)
+                if overlap > 0:
+                    current = current[-overlap:]
+                    current_chars = sum(self._estimate_segment_size(item) for item in current)
+                else:
+                    current = []
+                    current_chars = 0
+
+            current.append(segment)
+            current_chars += segment_size
+
+        if current:
+            chunks.append(current)
+
+        return chunks
+
+    def _should_use_hierarchical_mode(self, segments: List[TranscriptSegment]) -> bool:
+        total_chars = sum(self._estimate_segment_size(segment) for segment in segments)
+        return (
+            len(segments) > max(1, int(settings.summary_default_max_segments))
+            or total_chars > max(2000, int(settings.summary_default_max_chars))
+        )
+
+    def _summarize_one_shot(
+        self,
+        *,
+        title: str,
+        segments: List[TranscriptSegment],
+        style: str,
+        extras: str | None,
+        output_language: str,
+    ) -> str:
+        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
+        return self._complete(
+            system_prompt=build_system_prompt(output_language),
+            user_prompt=user_prompt,
+        )
+
+    def _summarize_hierarchical(
+        self,
+        *,
+        title: str,
+        segments: List[TranscriptSegment],
+        style: str,
+        extras: str | None,
+        output_language: str,
+        progress_callback: SummaryProgressCallback | None,
+    ) -> str:
+        chunks = self._chunk_segments(segments)
+        if len(chunks) <= 1:
+            return self._summarize_one_shot(
+                title=title,
+                segments=segments,
+                style=style,
+                extras=extras,
+                output_language=output_language,
+            )
+
+        chunk_notes: list[str] = []
+        total_chunks = len(chunks)
+        for index, chunk in enumerate(chunks, start=1):
+            if progress_callback:
+                progress_callback(f"Generating structured chunk notes {index}/{total_chunks}...")
+
+            chunk_notes.append(
+                self._complete(
+                    system_prompt=build_chunk_system_prompt(output_language),
+                    user_prompt=build_chunk_user_prompt(
+                        title=title,
+                        segment_text=self._build_segment_text(chunk),
+                        chunk_index=index,
+                        chunk_total=total_chunks,
+                        style=style,
+                        extras=extras,
+                        output_language=output_language,
+                    ),
+                )
+            )
+
+        if progress_callback:
+            progress_callback("Combining chunk notes into the final note...")
+
+        chunk_notes_text = "\n\n".join(
+            f"## Chunk Draft {index}\n{chunk_note.strip()}"
+            for index, chunk_note in enumerate(chunk_notes, start=1)
+        )
+        return self._complete(
+            system_prompt=build_merge_system_prompt(output_language),
+            user_prompt=build_merge_user_prompt(
+                title=title,
+                chunk_notes_text=chunk_notes_text,
+                style=style,
+                extras=extras,
+                output_language=output_language,
+            ),
+        )
+
+    def summarize(
+        self,
+        title: str,
+        segments: List[TranscriptSegment],
+        style: str = "detailed",
+        summary_mode: str = "default",
+        extras: str | None = None,
+        output_language: str = "zh-CN",
+        progress_callback: SummaryProgressCallback | None = None,
+    ) -> str:
+        mode = normalize_summary_mode(summary_mode)
+        if mode == "oneshot":
+            return self._summarize_one_shot(
+                title=title,
+                segments=segments,
+                style=style,
+                extras=extras,
+                output_language=output_language,
+            )
+
+        if mode == "accurate" or self._should_use_hierarchical_mode(segments):
+            return self._summarize_hierarchical(
+                title=title,
+                segments=segments,
+                style=style,
+                extras=extras,
+                output_language=output_language,
+                progress_callback=progress_callback,
+            )
+
+        return self._summarize_one_shot(
+            title=title,
+            segments=segments,
+            style=style,
+            extras=extras,
+            output_language=output_language,
+        )
+
 
 class OpenAILLM(_BasePromptLLM):
     def __init__(
@@ -59,19 +226,11 @@ class OpenAILLM(_BasePromptLLM):
         self.client = OpenAI(api_key=api_key, base_url=base_url, timeout=300.0)
         logger.info("[LLM] init openai-compatible model=%s base_url=%s", model, base_url)
 
-    def summarize(
-        self,
-        title: str,
-        segments: List[TranscriptSegment],
-        style: str = "detailed",
-        extras: str | None = None,
-        output_language: str = "zh-CN",
-    ) -> str:
-        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
+    def _complete(self, *, system_prompt: str, user_prompt: str) -> str:
         response = self.client.chat.completions.create(
             model=self.model,
             messages=[
-                {"role": "system", "content": build_system_prompt(output_language)},
+                {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt},
             ],
             temperature=self.temperature,
@@ -102,22 +261,14 @@ class AnthropicLLM(_BasePromptLLM):
             return f"{self.base_url}/messages"
         return f"{self.base_url}/v1/messages"
 
-    def summarize(
-        self,
-        title: str,
-        segments: List[TranscriptSegment],
-        style: str = "detailed",
-        extras: str | None = None,
-        output_language: str = "zh-CN",
-    ) -> str:
-        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
+    def _complete(self, *, system_prompt: str, user_prompt: str) -> str:
         response = post_anthropic_compatible(
             url=self._messages_url(),
             api_key=self.api_key,
             json_body={
                 "model": self.model,
                 "max_tokens": 8192,
-                "system": build_system_prompt(output_language),
+                "system": system_prompt,
                 "messages": [{"role": "user", "content": [{"type": "text", "text": user_prompt}]}],
                 "temperature": self.temperature,
             },
@@ -158,23 +309,13 @@ class AzureOpenAILLM(_BasePromptLLM):
             f"?api-version={settings.azure_openai_api_version}"
         )
 
-    def summarize(
-        self,
-        title: str,
-        segments: List[TranscriptSegment],
-        style: str = "detailed",
-        extras: str | None = None,
-        output_language: str = "zh-CN",
-    ) -> str:
-        import httpx
-
-        user_prompt = self._build_user_prompt(title, segments, style, extras, output_language)
+    def _complete(self, *, system_prompt: str, user_prompt: str) -> str:
         response = httpx.post(
             self._chat_url(),
             headers={"Content-Type": "application/json", "api-key": self.api_key},
             json={
                 "messages": [
-                    {"role": "system", "content": build_system_prompt(output_language)},
+                    {"role": "system", "content": system_prompt},
                     {"role": "user", "content": user_prompt},
                 ],
                 "max_tokens": 8192,

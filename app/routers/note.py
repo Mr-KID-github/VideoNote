@@ -40,6 +40,7 @@ def generate_note_sync(
             task_id=task_id,
             platform=req.platform,
             style=req.style or "detailed",
+            summary_mode=req.summary_mode,
             extras=req.extras,
             output_language=req.output_language,
             model_profile_id=req.model_profile_id,
@@ -59,6 +60,7 @@ def generate_note_sync(
         duration=result.audio_meta.duration,
         platform=result.audio_meta.platform,
         video_id=result.audio_meta.video_id,
+        summary_mode=result.summary_mode,
     )
 
 
@@ -78,6 +80,7 @@ def get_task_status(task_id: str):
                 duration=result_data.get("duration", 0),
                 platform=result_data.get("platform", ""),
                 video_id=result_data.get("video_id", ""),
+                summary_mode=result_data.get("summary_mode", "default"),
             )
     return TaskStatusResponse(task_id=task_id, status=status, message=message, result=result)
 
@@ -115,6 +118,7 @@ def generate_from_file_sync(
             task_id=task_id,
             title=req.title,
             style=req.style or "meeting",
+            summary_mode=req.summary_mode,
             extras=req.extras,
             output_language=req.output_language,
             model_profile_id=req.model_profile_id,
@@ -134,6 +138,7 @@ def generate_from_file_sync(
         duration=result.audio_meta.duration,
         platform=result.audio_meta.platform,
         video_id=result.audio_meta.video_id,
+        summary_mode=result.summary_mode,
     )
 
 
@@ -144,6 +149,7 @@ def _run_task(task_id: str, req: NoteRequest, user_id: str | None):
             task_id=task_id,
             platform=req.platform,
             style=req.style or "detailed",
+            summary_mode=req.summary_mode,
             extras=req.extras,
             output_language=req.output_language,
             model_profile_id=req.model_profile_id,
@@ -163,6 +169,7 @@ def _run_task_from_file(task_id: str, req: LocalFileRequest, user_id: str | None
             task_id=task_id,
             title=req.title,
             style=req.style or "meeting",
+            summary_mode=req.summary_mode,
             extras=req.extras,
             output_language=req.output_language,
             model_profile_id=req.model_profile_id,
