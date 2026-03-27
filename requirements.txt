@@ -26,3 +26,4 @@ cryptography==44.0.0
 SQLAlchemy==2.0.36
 psycopg[binary]==3.2.4
 passlib[bcrypt]==1.7.4
+Markdown==3.7

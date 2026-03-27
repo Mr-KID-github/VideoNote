@@ -1,21 +1,40 @@
 import { useEffect, useState } from 'react'
 import { ArrowLeft, Download, Edit3, Eye, MoreHorizontal, Save, Share2 } from 'lucide-react'
 import { useNavigate, useParams } from 'react-router-dom'
-import { useI18n } from '../lib/i18n'
 import { MarkdownContent } from '../components/Markdown/MarkdownContent'
-import { useNoteLibraryStore } from '../stores/noteLibraryStore'
+import { useI18n } from '../lib/i18n'
+import { type NoteShareRecord, useNoteLibraryStore } from '../stores/noteLibraryStore'
 
 export function NoteEditor() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { loadNoteById, updateNote } = useNoteLibraryStore()
-  const { copy } = useI18n()
+  const { copy, locale } = useI18n()
+  const { loadNoteById, updateNote, createShareLink, getShareLink, disableShareLink } = useNoteLibraryStore()
   const [isPreview, setIsPreview] = useState(false)
   const [localTitle, setLocalTitle] = useState('')
   const [content, setContent] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  const [shareLoading, setShareLoading] = useState(false)
+  const [shareState, setShareState] = useState<NoteShareRecord | null>(null)
+  const [shareMessage, setShareMessage] = useState('')
+  const [shareError, setShareError] = useState('')
+  const [sharePanelOpen, setSharePanelOpen] = useState(false)
   const [error, setError] = useState('')
+
+  const shareCopy = {
+    title: locale.startsWith('zh') ? 'LAN share' : 'LAN sharing',
+    description: 'Generate a backend-hosted public link that other devices on your LAN can open directly.',
+    generate: 'Generate and copy',
+    copy: 'Copy link',
+    disable: 'Disable sharing',
+    disabled: 'Sharing is currently disabled.',
+    copied: 'Share link copied to clipboard',
+    copyFailed: 'Copy failed. Please copy the link manually.',
+    createFailed: 'Failed to create share link',
+    disableFailed: 'Failed to disable sharing',
+    disabledSuccess: 'Sharing disabled. The old link is no longer accessible.',
+  }
 
   useEffect(() => {
     let active = true
@@ -42,6 +61,13 @@ export function NoteEditor() {
       setContent(note.content)
       setError('')
       setLoading(false)
+
+      const existingShare = await getShareLink(note.id)
+      if (!active || !existingShare) {
+        return
+      }
+
+      setShareState(existingShare)
     }
 
     void loadNote()
@@ -49,7 +75,7 @@ export function NoteEditor() {
     return () => {
       active = false
     }
-  }, [id, loadNoteById])
+  }, [copy.noteEditor.missingId, copy.noteEditor.notFound, getShareLink, id, loadNoteById])
 
   const handleSave = async () => {
     if (!id) {
@@ -57,7 +83,7 @@ export function NoteEditor() {
     }
 
     setSaving(true)
-      const updated = await updateNote(id, localTitle, content)
+    const updated = await updateNote(id, localTitle, content)
     if (!updated) {
       setError(copy.noteEditor.saveFailed)
       setSaving(false)
@@ -68,6 +94,65 @@ export function NoteEditor() {
     setContent(updated.content)
     setError('')
     setSaving(false)
+  }
+
+  const copyShareUrl = async (url: string) => {
+    try {
+      if (navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(url)
+        setShareMessage(shareCopy.copied)
+        setShareError('')
+        return
+      }
+    } catch (copyError) {
+      console.error('Failed to copy share url:', copyError)
+    }
+
+    setShareMessage('')
+    setShareError(shareCopy.copyFailed)
+  }
+
+  const handleShare = async () => {
+    if (!id) {
+      return
+    }
+
+    setSharePanelOpen(true)
+    setShareLoading(true)
+    setShareMessage('')
+    setShareError('')
+
+    const nextShareState = await createShareLink(id)
+    setShareLoading(false)
+
+    if (!nextShareState?.shareUrl) {
+      setShareError(shareCopy.createFailed)
+      return
+    }
+
+    setShareState(nextShareState)
+    await copyShareUrl(nextShareState.shareUrl)
+  }
+
+  const handleDisableShare = async () => {
+    if (!id) {
+      return
+    }
+
+    setShareLoading(true)
+    setShareMessage('')
+    setShareError('')
+
+    const nextShareState = await disableShareLink(id)
+    setShareLoading(false)
+
+    if (!nextShareState) {
+      setShareError(shareCopy.disableFailed)
+      return
+    }
+
+    setShareState(nextShareState)
+    setShareMessage(shareCopy.disabledSuccess)
   }
 
   const handleExport = () => {
@@ -104,74 +189,69 @@ export function NoteEditor() {
   }
 
   return (
-    <div className="h-full flex flex-col">
-      <div className="flex items-center justify-between px-4 py-2 border-b border-gray-200 dark:border-gray-700">
+    <div className="flex h-full flex-col">
+      <div className="flex items-center justify-between border-b border-gray-200 px-4 py-2 dark:border-gray-700">
         <div className="flex items-center gap-3">
           <button
             onClick={() => navigate('/notes')}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
           >
-            <ArrowLeft className="w-5 h-5" />
+            <ArrowLeft className="h-5 w-5" />
           </button>
           <input
             type="text"
             value={localTitle}
             onChange={(event) => setLocalTitle(event.target.value)}
             placeholder={copy.noteEditor.untitled}
-            className="text-lg font-medium bg-transparent outline-none border-none focus:ring-0 w-64"
+            className="w-64 border-none bg-transparent text-lg font-medium outline-none focus:ring-0"
           />
         </div>
 
         <div className="flex items-center gap-2">
-          <div className="flex bg-gray-100 dark:bg-gray-800 rounded-lg p-1">
+          <div className="flex rounded-lg bg-gray-100 p-1 dark:bg-gray-800">
             <button
               onClick={() => setIsPreview(false)}
-              className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
-                !isPreview
-                  ? 'bg-white dark:bg-[#202020] shadow-sm'
-                  : 'text-gray-500'
+              className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                !isPreview ? 'bg-white shadow-sm dark:bg-[#202020]' : 'text-gray-500'
               }`}
-              >
-                <Edit3 className="w-4 h-4" />
-                {copy.common.edit}
-              </button>
+            >
+              <Edit3 className="h-4 w-4" />
+              {copy.common.edit}
+            </button>
             <button
               onClick={() => setIsPreview(true)}
-              className={`flex items-center gap-1 px-3 py-1.5 text-sm rounded-md transition-colors ${
-                isPreview
-                  ? 'bg-white dark:bg-[#202020] shadow-sm'
-                  : 'text-gray-500'
+              className={`flex items-center gap-1 rounded-md px-3 py-1.5 text-sm transition-colors ${
+                isPreview ? 'bg-white shadow-sm dark:bg-[#202020]' : 'text-gray-500'
               }`}
-              >
-                <Eye className="w-4 h-4" />
-                {copy.common.preview}
-              </button>
+            >
+              <Eye className="h-4 w-4" />
+              {copy.common.preview}
+            </button>
           </div>
 
           <button
             onClick={() => void handleSave()}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
             title={saving ? copy.noteEditor.saving : copy.noteEditor.save}
           >
-            <Save className="w-5 h-5" />
+            <Save className="h-5 w-5" />
           </button>
           <button
             onClick={handleExport}
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
             title={copy.noteEditor.export}
           >
-            <Download className="w-5 h-5" />
+            <Download className="h-5 w-5" />
           </button>
           <button
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+            onClick={() => void handleShare()}
+            className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
             title={copy.noteEditor.share}
           >
-            <Share2 className="w-5 h-5" />
+            <Share2 className="h-5 w-5" />
           </button>
-          <button
-            className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            <MoreHorizontal className="w-5 h-5" />
+          <button className="rounded-lg p-2 hover:bg-gray-100 dark:hover:bg-gray-800">
+            <MoreHorizontal className="h-5 w-5" />
           </button>
         </div>
       </div>
@@ -182,20 +262,79 @@ export function NoteEditor() {
         </div>
       ) : null}
 
-      <div className="flex-1 flex overflow-hidden">
-        <div className={`flex-1 flex flex-col ${isPreview ? 'hidden md:flex' : 'flex'}`}>
+      {sharePanelOpen ? (
+        <div className="border-b border-sky-200 bg-sky-50/80 px-4 py-3 text-sm text-sky-900 dark:border-sky-900/40 dark:bg-sky-950/30 dark:text-sky-100">
+          <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <div className="space-y-1">
+              <div className="font-medium">{shareCopy.title}</div>
+              <p className="text-xs text-sky-800/80 dark:text-sky-200/80">{shareCopy.description}</p>
+              {shareState?.shareEnabled && shareState.shareUrl ? (
+                <input
+                  readOnly
+                  value={shareState.shareUrl}
+                  className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none dark:border-sky-900/50 dark:bg-slate-900 dark:text-slate-100 md:min-w-[420px]"
+                />
+              ) : (
+                <p className="text-xs text-sky-800/80 dark:text-sky-200/80">{shareCopy.disabled}</p>
+              )}
+              {shareMessage ? (
+                <p className="text-xs text-emerald-700 dark:text-emerald-300">{shareMessage}</p>
+              ) : null}
+              {shareError ? <p className="text-xs text-red-600 dark:text-red-300">{shareError}</p> : null}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => void handleShare()}
+                disabled={shareLoading}
+                className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+              >
+                {shareLoading ? copy.common.loading : shareCopy.generate}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  if (shareState?.shareUrl) {
+                    void copyShareUrl(shareState.shareUrl)
+                  }
+                }}
+                disabled={!shareState?.shareUrl || shareLoading}
+                className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-800/50 dark:text-sky-100 dark:hover:bg-sky-950/50"
+              >
+                {shareCopy.copy}
+              </button>
+              <button
+                type="button"
+                onClick={() => void handleDisableShare()}
+                disabled={!shareState?.shareEnabled || shareLoading}
+                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
+              >
+                {shareCopy.disable}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      <div className="flex flex-1 overflow-hidden">
+        <div className={`flex flex-1 flex-col ${isPreview ? 'hidden md:flex' : 'flex'}`}>
           <textarea
             value={content}
             onChange={(event) => setContent(event.target.value)}
-            className="flex-1 w-full p-4 resize-none outline-none bg-white dark:bg-[#191919] font-mono text-sm"
+            className="flex-1 w-full resize-none bg-white p-4 font-mono text-sm outline-none dark:bg-[#191919]"
             placeholder={copy.noteEditor.editorPlaceholder}
           />
         </div>
 
-        <div className={`flex-1 border-l border-gray-200 dark:border-gray-700 overflow-auto bg-gray-50 dark:bg-[#202020] ${!isPreview ? 'hidden md:flex' : 'flex'}`}>
+        <div
+          className={`flex-1 overflow-auto border-l border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-[#202020] ${
+            !isPreview ? 'hidden md:flex' : 'flex'
+          }`}
+        >
           <MarkdownContent
             content={content || copy.noteEditor.previewEmpty}
-            className="prose dark:prose-invert max-w-none p-6 w-full"
+            className="prose w-full max-w-none p-6 dark:prose-invert"
           />
         </div>
       </div>

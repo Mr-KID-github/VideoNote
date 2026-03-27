@@ -25,6 +25,15 @@ export interface NoteRecord {
   updatedAt: string
 }
 
+export interface NoteShareRecord {
+  noteId: string
+  title: string
+  shareEnabled: boolean
+  shareToken?: string
+  shareUrl?: string
+  shareCreatedAt?: string
+}
+
 interface NoteLibraryState {
   notes: NoteRecord[]
   loading: boolean
@@ -34,6 +43,9 @@ interface NoteLibraryState {
   saveNote: (title: string, content: string, videoUrl?: string) => Promise<NoteRecord | null>
   updateNote: (id: string, title: string, content: string) => Promise<NoteRecord | null>
   deleteNote: (id: string) => Promise<void>
+  createShareLink: (id: string) => Promise<NoteShareRecord | null>
+  getShareLink: (id: string) => Promise<NoteShareRecord | null>
+  disableShareLink: (id: string) => Promise<NoteShareRecord | null>
   reset: () => void
 }
 
@@ -53,6 +65,22 @@ const mapRow = (row: NoteRow): NoteRecord => ({
   status: row.status,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
+})
+
+const mapShareRow = (row: {
+  note_id: string
+  title: string
+  share_enabled: boolean
+  share_token?: string | null
+  share_url?: string | null
+  share_created_at?: string | null
+}): NoteShareRecord => ({
+  noteId: row.note_id,
+  title: row.title,
+  shareEnabled: row.share_enabled,
+  shareToken: row.share_token ?? undefined,
+  shareUrl: row.share_url ?? undefined,
+  shareCreatedAt: row.share_created_at ?? undefined,
 })
 
 export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
@@ -155,6 +183,70 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       set({
         error: error instanceof Error ? error.message : 'Failed to delete note',
       })
+    }
+  },
+  createShareLink: async (id) => {
+    try {
+      const data = await apiJson<{
+        note_id: string
+        title: string
+        share_enabled: boolean
+        share_token?: string | null
+        share_url?: string | null
+        share_created_at?: string | null
+      }>(`/api/notes/${id}/share`, {
+        method: 'POST',
+      })
+      set({ error: '' })
+      return mapShareRow(data)
+    } catch (error) {
+      console.error('Failed to create share link:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to create share link',
+      })
+      return null
+    }
+  },
+  getShareLink: async (id) => {
+    try {
+      const data = await apiJson<{
+        note_id: string
+        title: string
+        share_enabled: boolean
+        share_token?: string | null
+        share_url?: string | null
+        share_created_at?: string | null
+      }>(`/api/notes/${id}/share`)
+      set({ error: '' })
+      return mapShareRow(data)
+    } catch (error) {
+      console.error('Failed to load share link:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to load share link',
+      })
+      return null
+    }
+  },
+  disableShareLink: async (id) => {
+    try {
+      const data = await apiJson<{
+        note_id: string
+        title: string
+        share_enabled: boolean
+        share_token?: string | null
+        share_url?: string | null
+        share_created_at?: string | null
+      }>(`/api/notes/${id}/share`, {
+        method: 'DELETE',
+      })
+      set({ error: '' })
+      return mapShareRow(data)
+    } catch (error) {
+      console.error('Failed to disable share link:', error)
+      set({
+        error: error instanceof Error ? error.message : 'Failed to disable share link',
+      })
+      return null
     }
   },
   reset: () => set(initialState),
