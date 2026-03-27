@@ -1,12 +1,13 @@
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 
-from app.models.auth import AuthCredentials, UserResponse
+from app.models.auth import AuthCredentials, SessionResponse, UserResponse
 from app.services.auth_service import (
     authenticate_user,
     clear_auth_cookie,
     create_access_token,
     create_user,
     get_current_user,
+    get_optional_current_user,
     get_user_by_id,
     set_auth_cookie,
 )
@@ -40,3 +41,15 @@ def me(user=Depends(get_current_user)):
     if not current:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     return current
+
+
+@router.get("/auth/session", response_model=SessionResponse)
+def session(user=Depends(get_optional_current_user)):
+    if not user:
+        return SessionResponse(authenticated=False, user=None)
+
+    current = get_user_by_id(user.user_id)
+    if not current:
+        return SessionResponse(authenticated=False, user=None)
+
+    return SessionResponse(authenticated=True, user=current)

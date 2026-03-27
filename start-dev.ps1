@@ -36,10 +36,13 @@ if (-not (Test-CommandExists 'npm')) {
 Write-Host 'Starting VINote...'
 Write-Host 'Backend:  http://127.0.0.1:8900/docs'
 Write-Host 'Frontend: http://localhost:3100'
+Write-Host 'Docs:     http://localhost:3101'
 Write-Host ''
 Write-Host 'If this is the first run, install dependencies first:'
 Write-Host '  pip install -r requirements.txt'
 Write-Host '  cd frontend'
+Write-Host '  npm install'
+Write-Host '  cd ..\docs'
 Write-Host '  npm install'
 
 $backendArgs = @(
@@ -54,8 +57,18 @@ $frontendArgs = @(
     'npm run dev -- --host 0.0.0.0 --port 3100'
 )
 
+$docsArgs = @(
+    '-NoExit',
+    '-Command',
+    'npm run docs:dev'
+)
+
 Start-Process -FilePath 'powershell' -WorkingDirectory $projectRoot -ArgumentList $backendArgs
 
 Start-Sleep -Seconds 2
 
 Start-Process -FilePath 'powershell' -WorkingDirectory $frontendRoot -ArgumentList $frontendArgs
+
+Start-Sleep -Seconds 2
+
+Start-Process -FilePath 'powershell' -WorkingDirectory (Join-Path $projectRoot 'docs') -ArgumentList $docsArgs

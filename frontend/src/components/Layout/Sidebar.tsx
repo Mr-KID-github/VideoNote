@@ -1,8 +1,10 @@
 import { useState } from 'react'
-import { ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
+import { BookText, ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
+import packageJson from '../../../package.json'
 import { useI18n } from '../../lib/i18n'
+import { resolveDocumentUrl } from '../../lib/runtimeConfig'
 
 interface FolderItem {
   id: string
@@ -16,6 +18,8 @@ export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { copy } = useI18n()
+  const appVersion = `v${packageJson.version}`
+  const docsUrl = resolveDocumentUrl()
 
   const toggleFolder = (id: string) => {
     setExpandedFolders((previous) => {
@@ -79,6 +83,19 @@ export function Sidebar() {
             ))
           )}
         </div>
+      </div>
+
+      <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-3">
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{appVersion}</p>
+        <a
+          href={docsUrl}
+          target="_blank"
+          rel="noreferrer"
+          className="mt-2 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-primary-light dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-primary-dark"
+        >
+          <BookText className="h-4 w-4" />
+          <span>Document</span>
+        </a>
       </div>
     </aside>
   )

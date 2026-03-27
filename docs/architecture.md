@@ -1,27 +1,32 @@
-# VINote Architecture
+---
+title: 系统架构
+description: VINote 当前运行时架构与职责边界。
+---
 
-## Current Scope
+# 系统架构
 
-VINote is currently organized around one core product flow:
+## 当前范围
 
-1. Sign in with an app-owned email/password account.
-2. Submit a video URL to the FastAPI backend.
-3. Run the note-generation pipeline.
-4. Save the generated Markdown note in PostgreSQL.
-5. Continue editing the note in the frontend.
+VINote 目前围绕一条核心产品链路组织：
 
-Local audio-file generation still exists on the backend, but the browser UI is currently centered on the URL-based workflow.
+1. 用户使用系统自有账号登录。
+2. 提交视频 URL 到 FastAPI 后端。
+3. 后端执行笔记生成任务。
+4. 生成的 Markdown 笔记保存到 PostgreSQL。
+5. 用户继续在前端编辑和预览笔记。
 
-## Runtime Topology
+浏览器侧当前主打 URL 工作流，虽然本地文件生成接口仍然存在于后端。
+
+## 运行时拓扑
 
 ```text
-Frontend (React + cookie auth)
+前端 (React + Cookie Auth)
         |
         v
-FastAPI routers
+FastAPI 路由层
         |
         v
-Application services
+应用服务层
   |- AuthService
   |- NoteService
   |- ModelProfileService
@@ -31,115 +36,82 @@ Application services
         +--> yt-dlp / ffmpeg / ffprobe
         +--> Whisper / Faster-Whisper / Groq / SenseVoice
         +--> OpenAI-compatible / Anthropic-compatible / Azure OpenAI / Ollama
-        +--> output/ task artifacts
+        +--> output/ 任务产物
 ```
 
-## Backend Structure
+## 后端结构
 
-### API layer
+### API 层
 
 - `main.py`
-  - process entrypoint
+  - 进程入口
 - `app/__init__.py`
-  - app factory, CORS, startup hooks, router registration
+  - app factory、CORS、启动钩子、router 注册
 - `app/routers/auth.py`
-  - sign-up, sign-in, sign-out, current-user endpoints
+  - 注册、登录、退出、当前用户、会话探测接口
 - `app/routers/note.py`
-  - generation and task polling endpoints
+  - 生成和任务轮询接口
 - `app/routers/note_library.py`
-  - saved note CRUD endpoints
+  - 已保存笔记 CRUD
 - `app/routers/preferences.py`
-  - user preference endpoints
+  - 用户偏好接口
 - `app/routers/model_profiles.py`
-  - model profile CRUD and test endpoints
+  - 模型配置 CRUD 和连通性测试
 
-### Domain and infrastructure layer
+### 领域与基础设施层
 
 - `app/services/auth_service.py`
-  - password hashing, JWT issue/verify, HttpOnly cookie handling
+  - 密码哈希、JWT 签发/校验、HttpOnly Cookie 处理
 - `app/services/note_service.py`
-  - note generation orchestration only
+  - 笔记生成编排
 - `app/services/transcription_service.py`
-  - transcriber selection and transcription flow
+  - 转写器选择与转写流程
 - `app/services/llm_service.py`
-  - model resolution and summarizer selection
+  - 模型解析与总结器选择
 - `app/services/screenshot_service.py`
-  - screenshot placeholder expansion
+  - 截图占位符替换
 - `app/services/task_artifact_service.py`
-  - output artifacts and task status files
-- `app/services/note_repository.py`
-  - note persistence
-- `app/services/preferences_repository.py`
-  - preference persistence
-- `app/services/model_profile_repository.py`
-  - encrypted profile persistence
-- `app/services/model_profile_connection_service.py`
-  - provider connectivity checks
+  - 输出产物与任务状态文件
 
-### Database boundary
+## 前端结构
 
-- `app/db.py`
-  - SQLAlchemy engine, session, startup initialization
-- `app/db_models.py`
-  - ORM tables for users, notes, preferences, and model profiles
-
-Current schema initialization is handled by app startup via SQLAlchemy metadata creation. Alembic is not wired in yet.
-
-## Frontend Structure
-
-### App shell
+### App Shell
 
 - `frontend/src/App.tsx`
-  - route composition
+  - 路由组合
 - `frontend/src/components/Layout/`
-  - shell, header, sidebar, theme controls
+  - 主框架、页头、侧栏、主题控件
 - `frontend/src/components/Settings/`
-  - settings panels and model-profile UI
+  - 设置面板和模型配置 UI
 
-### Feature pages
+### 功能页面
 
 - `frontend/src/pages/Home.tsx`
-  - workspace landing page
+  - 工作台首页
 - `frontend/src/pages/Notes.tsx`
-  - note library
+  - 笔记库
 - `frontend/src/pages/NoteGenerator.tsx`
-  - generation flow
+  - 生成流程
 - `frontend/src/pages/NoteEditor.tsx`
-  - Markdown editing and preview
+  - Markdown 编辑与预览
 - `frontend/src/pages/Settings.tsx`
-  - appearance, auth, and model profile settings
+  - 外观、账号和模型配置设置
 
-### State boundaries
+## 鉴权与数据归属
 
-- `frontend/src/stores/authStore.ts`
-  - cookie-auth lifecycle via backend auth endpoints
-- `frontend/src/stores/noteLibraryStore.ts`
-  - saved note CRUD via `/api/notes`
-- `frontend/src/stores/languageStore.ts`
-  - preference sync via `/api/preferences`
-- `frontend/src/stores/modelProfileStore.ts`
-  - model profile CRUD and testing
-- `frontend/src/stores/noteGenerationStore.ts`
-  - transient generation state
+- VINote 自己管理用户账户，数据存储在 PostgreSQL。
+- 后端签发 JWT，并通过 HttpOnly Cookie 传递给浏览器。
+- 前端不直接读取原始 token。
+- Provider API Key 只保存在后端，前端只拿到脱敏提示。
+- 任务产物仍以文件形式落在 `output/`。
 
-## Auth and Data Ownership
+## 部署形态
 
-- VINote owns user accounts directly in PostgreSQL.
-- The backend signs JWT access tokens and stores them in an HttpOnly cookie.
-- The frontend never reads raw auth tokens directly.
-- Provider API keys are stored only on the backend and returned to the browser only as masked hints.
-- Task artifacts remain file-based under `output/`.
-
-## Deployment Shape
-
-Current deployment target is:
+当前部署由三块组成：
 
 - `frontend`
 - `backend`
 - `postgres`
 
-This is true for local Docker and Raspberry Pi LAN deployment. Supabase is no longer part of the runtime stack.
+如果启用独立文档站，还会增加一个 `docs` 静态服务。
 
-## Historical Note
-
-Some historical planning documents under `docs/plans/` still refer to the earlier Supabase-based architecture. Those files describe design history, not the current runtime implementation.

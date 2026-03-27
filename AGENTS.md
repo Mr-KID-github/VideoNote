@@ -35,6 +35,8 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - `supabase/`: local Supabase config, start scripts, and SQL migrations.
 - `tests/`: backend unit tests.
 - `docs/plans/`: product/design implementation notes.
+- `docs/.vitepress/`: standalone VitePress docs site config and navigation.
+- `docs/en/`: English docs pages paired with the default Simplified Chinese docs.
 - `data/`: downloaded audio/video cache and temporary transcription chunks.
 - `output/`: per-task artifacts and generated Markdown notes.
 
@@ -57,11 +59,15 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Frontend dev server: `cd frontend && npm run dev`
 - Frontend build: `cd frontend && npm run build`
 - Frontend preview: `cd frontend && npm run preview`
+- Docs install: `cd docs && npm install`
+- Docs dev server: `cd docs && npm run docs:dev`
+- Docs build: `cd docs && npm run docs:build`
 - Windows convenience launcher: `.\start-dev.ps1` or `.\start-dev.bat`
 
 Default local ports:
 - Backend API/docs: `http://127.0.0.1:8900`
 - Frontend dev server: `http://localhost:3100`
+- Docs dev server: `http://localhost:3101`
 - Backend MCP endpoint: `http://127.0.0.1:8900/mcp`
 
 ## Environment and Configuration
@@ -82,6 +88,8 @@ Important backend variables:
 
 Frontend Vite settings live in `frontend/.env.local`:
 - `VITE_API_BASE_URL` (leave empty for the local Vite proxy, or set an absolute backend URL)
+- `VITE_DOCS_BASE_URL` (optional absolute docs-site URL; when empty the app falls back to backend Swagger docs)
+  - local dev special case: when the frontend runs on port `3100`, the sidebar `Document` link defaults to `http://localhost:3101/`
 
 ## Testing and Verification
 The repository already contains backend tests under `tests/`.
@@ -89,6 +97,7 @@ The repository already contains backend tests under `tests/`.
 Recommended checks after code changes:
 - Backend unit tests: `pytest tests`
 - Frontend type/build check: `cd frontend && npm run build`
+- Docs build check: `cd docs && npm run docs:build`
 - API smoke check: open `http://127.0.0.1:8900/docs`
 - MCP smoke check: `POST http://127.0.0.1:8900/mcp` with JSON-RPC `initialize` or `tools/list`
 - Pipeline smoke check: run one sample generation and inspect the created folder under `output/`
