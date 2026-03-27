@@ -3,8 +3,10 @@ Note generation API routes.
 """
 import logging
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException
+from fastapi.responses import FileResponse
 
 from app.llm.prompts import STYLE_MAP
 from app.models.auth import AuthenticatedUser
@@ -83,6 +85,26 @@ def get_task_status(task_id: str):
                 summary_mode=result_data.get("summary_mode", "default"),
             )
     return TaskStatusResponse(task_id=task_id, status=status, message=message, result=result)
+
+
+@router.get("/task/{task_id}/artifacts/{asset_path:path}", include_in_schema=False)
+def get_task_artifact(task_id: str, asset_path: str):
+    task_dir = _note_service.artifact_service.find_task_dir(task_id)
+    if not task_dir:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    normalized_parts = Path(asset_path).parts
+    if not normalized_parts or normalized_parts[0] != "screenshots":
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    requested_path = (task_dir / asset_path).resolve()
+    task_root = task_dir.resolve()
+    if task_root not in requested_path.parents and requested_path != task_root:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    if not requested_path.exists() or not requested_path.is_file():
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    return FileResponse(Path(requested_path))
 
 
 @router.get("/styles")

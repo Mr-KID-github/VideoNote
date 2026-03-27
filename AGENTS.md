@@ -11,9 +11,10 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
+    - `note_media_service.py`: selects key moments, then adds heading timestamps and screenshot markers for those moments after summarization.
     - `transcription_service.py`: transcriber selection, chunking, ffmpeg/ffprobe helpers.
     - `llm_service.py`: resolves LLM config from request overrides, saved model profiles, or env defaults.
     - `task_artifact_service.py`: persists status/result/transcript/markdown artifacts under `output/`.
@@ -42,9 +43,9 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 2. `NoteService` creates a task directory under `output/`, downloads or prepares audio, and updates `status.json`.
 3. `TranscriptionService` loads the selected transcriber, optionally chunks long audio, and saves `transcript.json`.
 4. `LLMService` resolves the active model configuration and generates Markdown from transcript segments using the requested summary mode (`default`, `accurate`, or `oneshot`).
-5. `ScreenshotService` optionally downloads the full video and injects extracted frames into note Markdown.
+5. `NoteMediaService` enriches the generated Markdown with section-level timestamp jump links and screenshot markers, then `ScreenshotService` downloads the full video and injects extracted frames.
 6. `TaskArtifactService` writes `note.md`, `result.json`, `status.json`, and the `.task_id` mapping.
-7. Frontend polls `/api/task/{task_id}`, stores the final note row in the backend `notes` table, and can optionally generate a public `/share/{token}` link for LAN access.
+7. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, and can optionally generate a public `/share/{token}` link for LAN access.
 
 ## Build, Run, and Dev Commands
 - Backend install: `pip install -r requirements.txt`

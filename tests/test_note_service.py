@@ -72,7 +72,7 @@ class FakeSummarizer:
                 "output_language": output_language,
             }
         )
-        return f"# {title}\n\n{segments[0].text}\n\n[[Screenshot:00:01]]"
+        return f"# {title}\n\n## Key moment\n\n{segments[0].text} [00:01]\n\n[[Screenshot:00:01]]"
 
 
 class FakeLLMService:
@@ -93,10 +93,10 @@ class FakeLLMService:
 
 class FakeScreenshotService:
     def __init__(self):
-        self.calls: list[tuple[str, str, str]] = []
+        self.calls: list[tuple[str, str, str, str]] = []
 
-    def inject_screenshots(self, *, video_url: str, markdown: str, task_dir: Path) -> str:
-        self.calls.append((video_url, markdown, str(task_dir)))
+    def inject_screenshots(self, *, video_url: str, markdown: str, task_dir: Path, task_id: str) -> str:
+        self.calls.append((video_url, markdown, str(task_dir), task_id))
         return markdown.replace("[[Screenshot:00:01]]", "![Screenshot 00:01](screenshots/frame_1.png)")
 
 

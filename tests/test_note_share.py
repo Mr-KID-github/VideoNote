@@ -88,7 +88,7 @@ class ShareHtmlRenderingTest(unittest.TestCase):
         note = PublicSharedNoteResponse(
             title='A <Title>',
             content='# Heading\n\n- item\n\n```python\nprint(1)\n```\n\n<script>alert(1)</script>',
-            video_url="https://example.com/video",
+            video_url="https://www.bilibili.com/video/BV1xx411c7mD",
             source_type="video",
             created_at=datetime.now(timezone.utc),
             updated_at=datetime.now(timezone.utc),
@@ -103,6 +103,7 @@ class ShareHtmlRenderingTest(unittest.TestCase):
         self.assertIn("<li>item</li>", page)
         self.assertIn("<pre>", page)
         self.assertIn("&lt;script&gt;alert(1)&lt;/script&gt;", page)
+        self.assertIn("player.html", page)
 
 
 if __name__ == "__main__":

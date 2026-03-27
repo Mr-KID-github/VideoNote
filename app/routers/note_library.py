@@ -1,12 +1,18 @@
+import mimetypes
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import FileResponse
 
 from app.models.auth import AuthenticatedUser
 from app.models.note_library import NoteCreateRequest, NoteRecordResponse, NoteUpdateRequest
 from app.services.auth_service import get_current_user
+from app.services.task_artifact_service import TaskArtifactService
 from app.services.note_repository import NoteRepository
 
 router = APIRouter(tags=["notes-library"])
 _repository = NoteRepository()
+_artifact_service = TaskArtifactService()
 
 
 @router.get("/notes", response_model=list[NoteRecordResponse])
@@ -20,6 +26,28 @@ def get_note(note_id: str, user: AuthenticatedUser = Depends(get_current_user)):
     if not note:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Note not found")
     return note
+
+
+@router.get("/notes/{note_id}/media", include_in_schema=False)
+def get_note_media(note_id: str, user: AuthenticatedUser = Depends(get_current_user)):
+    note = _repository.get_note(user.user_id, note_id)
+    if not note or not note.task_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    task_dir = _artifact_service.find_task_dir(note.task_id)
+    if not task_dir:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    audio_meta = _artifact_service.load_audio_meta(task_dir)
+    if not audio_meta:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    media_path = Path(audio_meta.file_path).resolve()
+    if not media_path.exists() or not media_path.is_file():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+
+    media_type = mimetypes.guess_type(media_path.name)[0] or "application/octet-stream"
+    return FileResponse(path=media_path, media_type=media_type, filename=media_path.name)
 
 
 @router.post("/notes", response_model=NoteRecordResponse, status_code=status.HTTP_201_CREATED)

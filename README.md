@@ -31,6 +31,8 @@ Main backend responsibilities:
   - HTTP routes only
 - `app/services/note_service.py`
   - note generation orchestration
+- `app/services/note_media_service.py`
+  - selects key moments from the generated note and injects timestamp jump links plus screenshot markers only for those moments
 - `app/services/auth_service.py`
   - email/password auth, JWT issue/verify, auth cookie handling
 - `app/services/note_repository.py`
@@ -59,12 +61,25 @@ Main frontend responsibilities:
   - cookie-auth session lifecycle
 - `frontend/src/stores/noteLibraryStore.ts`
   - note library CRUD via backend API
+- `frontend/src/components/Notes/VideoReferencePanel.tsx`
+  - sticky source-media panel for timestamp jumping during note preview, with audio fallback for non-embeddable sources
+- `frontend/src/components/Notes/KeyMomentsRail.tsx`
+  - visual key-moment rail with screenshot cards, timestamps, and jump targets
 - `frontend/src/stores/languageStore.ts`
   - language preference sync via backend API
 - `frontend/src/stores/modelProfileStore.ts`
   - model profile management
 
 More detail is in [docs/architecture.md](/Users/25772/Desktop/Project/VideoNote/docs/architecture.md).
+
+Media preview behavior:
+
+- Generated notes now append clickable timestamps only to selected key moments instead of every heading.
+- Key moments can carry screenshot thumbnails in both Markdown and the preview-side moment rail.
+- Clicking a heading timestamp, key-moment card, inline timestamp, or screenshot seeks the preview-side media panel when possible.
+- Embeddable sources such as YouTube and Bilibili render an iframe.
+- Audio-only or non-embeddable sources fall back to `/api/notes/{note_id}/media` so timestamp clicks can still seek the extracted audio.
+- The note editor now supports a split workspace with a draggable divider between Markdown source and rendered preview.
 
 ## Repository Layout
 
@@ -230,9 +245,10 @@ Core generation endpoints remain in the FastAPI backend:
 
 - `POST /api/generate`
 - `GET /api/task/{task_id}`
-- `GET /api/task/{task_id}/result`
+- `GET /api/task/{task_id}/artifacts/{asset_path}`
 
 Generation requests accept an optional `summary_mode` field with `default`, `accurate`, or `oneshot`.
+Generated notes now include per-section video jump links and API-served screenshot assets under the task artifact route above.
 
 Saved-note APIs:
 

@@ -15,6 +15,7 @@ type TaskStatusResponse = {
   status: string
   message: string
   result?: {
+    task_id: string
     title: string
     markdown: string
   }
@@ -58,7 +59,12 @@ export function NoteGenerator() {
           setCurrentStep('success')
           setStatus('success')
 
-          const note = await saveNote(data.result?.title || '', data.result?.markdown || '', videoUrl)
+          const note = await saveNote(
+            data.result?.title || '',
+            data.result?.markdown || '',
+            videoUrl,
+            data.result?.task_id || id,
+          )
           if (note) {
             navigate(`/note/${note.id}`)
             return
