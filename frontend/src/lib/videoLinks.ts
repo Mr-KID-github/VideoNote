@@ -21,7 +21,7 @@ export function resolveContentUrl(url: string) {
 }
 
 export function buildVideoJumpUrl(videoUrl: string, seconds: number) {
-  const url = new URL(videoUrl)
+  const url = new URL(resolveContentUrl(videoUrl), window.location.origin)
   url.searchParams.set('t', String(normalizeSeconds(seconds)))
   return url.toString()
 }
@@ -55,7 +55,7 @@ function extractBilibiliBvid(pathname: string) {
 export function isSameVideoTarget(href: string, videoUrl: string) {
   try {
     const left = new URL(href, window.location.origin)
-    const right = new URL(videoUrl)
+    const right = new URL(resolveContentUrl(videoUrl), window.location.origin)
     const leftHost = left.hostname.replace(/^www\./, '')
     const rightHost = right.hostname.replace(/^www\./, '')
 
@@ -80,11 +80,28 @@ export function isSameVideoTarget(href: string, videoUrl: string) {
   }
 }
 
+export function isLocalMediaHref(href: string) {
+  try {
+    const url = new URL(href, window.location.origin)
+    return (
+      url.pathname.includes('/api/notes/') && url.pathname.endsWith('/media')
+    ) || (
+      url.pathname.includes('/api/task/') && url.pathname.includes('/artifacts/media/')
+    )
+  } catch {
+    return false
+  }
+}
+
 export function buildEmbedUrl(videoUrl: string, seconds = 0) {
   try {
-    const url = new URL(videoUrl)
+    const url = new URL(resolveContentUrl(videoUrl), window.location.origin)
     const host = url.hostname.replace(/^www\./, '')
     const offset = normalizeSeconds(seconds)
+
+    if (isLocalMediaHref(url.toString())) {
+      return null
+    }
 
     if (host === 'youtu.be') {
       const videoId = url.pathname.replace(/^\/+/, '')

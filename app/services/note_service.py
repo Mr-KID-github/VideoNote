@@ -238,11 +238,27 @@ class NoteService:
             )
             step_timings["summarize"] = time.time() - step_start
 
+            local_audio_path = self.artifact_service.stage_media_file(
+                final_dir,
+                audio_meta.file_path,
+                target_stem="source_audio",
+            )
+            media_url = f"/api/task/{task_id}/artifacts/media/{local_audio_path.name}"
+            local_video_path = None
+
             if source_video_url:
+                prepared_video = self.screenshot_service.prepare_local_video(
+                    video_url=source_video_url,
+                    task_dir=final_dir,
+                    task_id=task_id,
+                )
+                if prepared_video:
+                    local_video_path, media_url = prepared_video
+
                 markdown = self.media_service.enrich_markdown(
                     markdown=markdown,
                     transcript_segments=transcript.segments,
-                    video_url=source_video_url,
+                    video_url=media_url,
                     output_language=resolved_output_language,
                 )
                 step_start = time.time()
@@ -252,6 +268,8 @@ class NoteService:
                     markdown=markdown,
                     task_dir=final_dir,
                     task_id=task_id,
+                    media_url=media_url,
+                    local_video_path=local_video_path,
                 )
                 step_timings["screenshots"] = time.time() - step_start
 

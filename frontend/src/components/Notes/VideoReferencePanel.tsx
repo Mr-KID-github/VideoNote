@@ -1,11 +1,6 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { ExternalLink, PlayCircle } from 'lucide-react'
-import {
-  buildEmbedUrl,
-  buildVideoJumpUrl,
-  formatTimestampLabel,
-  resolveContentUrl,
-} from '../../lib/videoLinks'
+import { buildVideoJumpUrl, formatTimestampLabel, resolveContentUrl } from '../../lib/videoLinks'
 
 interface VideoReferencePanelProps {
   noteId?: string
@@ -18,6 +13,8 @@ interface VideoReferencePanelProps {
   onTimestampChange?: (seconds: number) => void
 }
 
+type PlayerKind = 'video' | 'audio'
+
 export function VideoReferencePanel({
   noteId,
   taskId,
@@ -28,24 +25,26 @@ export function VideoReferencePanel({
   className,
   onTimestampChange,
 }: VideoReferencePanelProps) {
+  const videoRef = useRef<HTMLVideoElement | null>(null)
   const audioRef = useRef<HTMLAudioElement | null>(null)
-  const embedUrl = buildEmbedUrl(videoUrl, currentTimestamp)
-  const jumpUrl = buildVideoJumpUrl(videoUrl, currentTimestamp)
+  const [playerKind, setPlayerKind] = useState<PlayerKind>('video')
+  const localMediaUrl = noteId && taskId ? resolveContentUrl(`/api/notes/${noteId}/media`) : null
+  const jumpUrl = buildVideoJumpUrl(localMediaUrl || videoUrl, currentTimestamp)
   const timestampLabel = formatTimestampLabel(currentTimestamp)
-  const audioUrl = noteId && taskId ? resolveContentUrl(`/api/notes/${noteId}/media`) : null
 
   useEffect(() => {
-    if (!audioRef.current || !audioUrl || embedUrl || jumpRequestId === 0) {
+    const player = playerKind === 'video' ? videoRef.current : audioRef.current
+    if (!player || !localMediaUrl || jumpRequestId === 0) {
       return
     }
 
-    audioRef.current.currentTime = currentTimestamp
+    player.currentTime = currentTimestamp
     if (currentTimestamp > 0) {
-      void audioRef.current.play().catch(() => {
+      void player.play().catch(() => {
         // Keep the seek even if autoplay is blocked.
       })
     }
-  }, [audioUrl, currentTimestamp, embedUrl, jumpRequestId])
+  }, [currentTimestamp, jumpRequestId, localMediaUrl, playerKind])
 
   return (
     <aside className={className}>
@@ -54,7 +53,7 @@ export function VideoReferencePanel({
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">
             Source Media
           </p>
-          <h3 className="mt-1 text-base font-semibold">Jump from note to original context</h3>
+          <h3 className="mt-1 text-base font-semibold">Jump from note to local source context</h3>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             Current position: {timestampLabel}
           </p>
@@ -65,36 +64,39 @@ export function VideoReferencePanel({
           ) : null}
         </div>
 
-        {embedUrl ? (
-          <div className="overflow-hidden rounded-2xl border border-gray-200 bg-black shadow-sm dark:border-gray-700">
-            <iframe
-              key={`${embedUrl}-${jumpRequestId}`}
-              src={embedUrl}
-              title="Source video"
-              allowFullScreen
-              loading="lazy"
-              className="aspect-video w-full"
-            />
-          </div>
-        ) : audioUrl ? (
+        {localMediaUrl ? (
           <div className="rounded-2xl border border-gray-200 bg-white p-4 shadow-sm dark:border-gray-700 dark:bg-[#111111]">
-            <audio
-              ref={audioRef}
-              controls
-              preload="metadata"
-              src={audioUrl}
-              className="w-full"
-              onTimeUpdate={(event) => {
-                onTimestampChange?.(Math.floor(event.currentTarget.currentTime))
-              }}
-            />
+            {playerKind === 'video' ? (
+              <video
+                ref={videoRef}
+                controls
+                preload="metadata"
+                src={localMediaUrl}
+                className="aspect-video w-full rounded-xl bg-black"
+                onError={() => setPlayerKind('audio')}
+                onTimeUpdate={(event) => {
+                  onTimestampChange?.(Math.floor(event.currentTarget.currentTime))
+                }}
+              />
+            ) : (
+              <audio
+                ref={audioRef}
+                controls
+                preload="metadata"
+                src={localMediaUrl}
+                className="w-full"
+                onTimeUpdate={(event) => {
+                  onTimestampChange?.(Math.floor(event.currentTarget.currentTime))
+                }}
+              />
+            )}
             <p className="mt-3 text-sm text-gray-500 dark:text-gray-400">
-              Embedded video is unavailable for this source. Timestamp clicks will seek the extracted audio.
+              Timestamp links now seek the downloaded local media instead of reopening the original page.
             </p>
           </div>
         ) : (
           <div className="rounded-2xl border border-dashed border-gray-300 p-4 text-sm text-gray-500 dark:border-gray-600 dark:text-gray-400">
-            This source cannot be embedded here, but timestamp links still open the original page.
+            Local media is unavailable for this note, so only the original source link can be opened.
           </div>
         )}
 

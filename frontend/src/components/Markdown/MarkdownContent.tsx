@@ -4,6 +4,7 @@ import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import {
   extractSecondsFromHref,
+  isLocalMediaHref,
   isSameVideoTarget,
   resolveContentUrl,
 } from '../../lib/videoLinks'
@@ -13,6 +14,7 @@ interface MarkdownContentProps {
   content: string
   className?: string
   videoUrl?: string
+  mediaUrl?: string
   onVideoJump?: (seconds: number) => void
 }
 
@@ -55,7 +57,7 @@ function createHeading(level: 'h1' | 'h2' | 'h3', className: string) {
   }
 }
 
-export function MarkdownContent({ content, className, videoUrl, onVideoJump }: MarkdownContentProps) {
+export function MarkdownContent({ content, className, videoUrl, mediaUrl, onVideoJump }: MarkdownContentProps) {
   return (
     <div className={className}>
       <ReactMarkdown
@@ -93,11 +95,15 @@ export function MarkdownContent({ content, className, videoUrl, onVideoJump }: M
                 rel="noreferrer"
                 className="text-primary-light underline underline-offset-2"
                 onClick={(event) => {
-                  if (!resolvedHref || !videoUrl || !onVideoJump) {
+                  if (!resolvedHref || !onVideoJump) {
                     return
                   }
 
-                  if (!isSameVideoTarget(resolvedHref, videoUrl)) {
+                  const matchesSource =
+                    Boolean(videoUrl && isSameVideoTarget(resolvedHref, videoUrl)) ||
+                    Boolean(mediaUrl && isLocalMediaHref(resolvedHref))
+
+                  if (!matchesSource) {
                     return
                   }
 

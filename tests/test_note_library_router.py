@@ -102,6 +102,46 @@ class NoteLibraryRouterTest(unittest.TestCase):
         self.assertEqual(response.content, b"fake-audio")
         self.assertEqual(response.headers["content-type"], "audio/mpeg")
 
+    def test_get_note_media_prefers_staged_video_artifact(self):
+        media_file = self.media_dir / "episode.mp3"
+        media_file.write_bytes(b"fake-audio")
+        task_dir = self.artifact_service.create_task_dir("task-video")
+        self.artifact_service.update_status(task_dir, "success", "ready")
+        staged_video = self.artifact_service.stage_media_file(task_dir, str(media_file), target_stem="source_video")
+        staged_video = staged_video.with_suffix(".mp4")
+        staged_video.write_bytes(b"fake-video")
+        self.artifact_service.save_audio_meta(
+            task_dir,
+            AudioDownloadResult(
+                file_path=str(media_file),
+                title="Episode",
+                duration=42.0,
+                video_id="episode-1",
+                platform="youtube",
+            ),
+        )
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Video note",
+                    content="body",
+                    video_url="https://www.youtube.com/watch?v=demo",
+                    task_id="task-video",
+                ),
+            )
+
+            response = self.client.get(f"/api/notes/{note.id}/media")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"fake-video")
+        self.assertEqual(response.headers["content-type"], "video/mp4")
+
     def test_get_note_media_returns_404_without_task_id(self):
         with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
             note_library,

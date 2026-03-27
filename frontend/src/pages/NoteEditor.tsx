@@ -40,6 +40,7 @@ export function NoteEditor() {
 
   const keyMoments = parseKeyMoments(content)
   const activeMoment = findActiveKeyMoment(keyMoments, currentTimestamp)
+  const localMediaUrl = id && taskId ? `/api/notes/${id}/media` : undefined
   const splitLabel = locale.startsWith('zh') ? '对照' : 'Split'
   const shareCopy = {
     title: locale.startsWith('zh') ? 'LAN share' : 'LAN sharing',
@@ -488,6 +489,7 @@ export function NoteEditor() {
                     content={content || copy.noteEditor.previewEmpty}
                     className="prose w-full max-w-none px-6 py-6 dark:prose-invert lg:px-8"
                     videoUrl={videoUrl || undefined}
+                    mediaUrl={localMediaUrl}
                     onVideoJump={(seconds) => {
                       jumpToTimestamp(seconds)
                     }}

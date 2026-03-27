@@ -37,6 +37,7 @@ $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
 $localConfigPath = Join-Path $PSScriptRoot "local.env"
 $envPath = Join-Path $repoRoot $EnvFile
 $frontendPort = "3100"
+$backendPort = "8900"
 
 if (Test-Path $localConfigPath) {
     Get-Content $localConfigPath | ForEach-Object {
@@ -83,6 +84,11 @@ if (-not (Test-Path $envPath)) {
 $frontendPortLine = Get-Content $envPath | Where-Object { $_ -match '^FRONTEND_PORT=' } | Select-Object -First 1
 if ($frontendPortLine) {
     $frontendPort = ($frontendPortLine -split '=', 2)[1].Trim()
+}
+
+$backendPortLine = Get-Content $envPath | Where-Object { $_ -match '^BACKEND_PORT=' } | Select-Object -First 1
+if ($backendPortLine) {
+    $backendPort = ($backendPortLine -split '=', 2)[1].Trim()
 }
 
 $status = git -C $repoRoot status --short
@@ -153,6 +159,7 @@ rm -f "__REMOTE_ENV__"
 
 cd "__REMOTE_DIR__"
 export COMPOSE_PROJECT_NAME=vinote
+export DOCKER_DEFAULT_PLATFORM=linux/arm/v7
 
 mkdir -p data output
 
@@ -199,3 +206,4 @@ if ($frontendPort -eq "80") {
 } else {
     Write-Host "Open in LAN: http://${PiHost}:${frontendPort}"
 }
+Write-Host "MCP endpoint: http://${PiHost}:${backendPort}/mcp"

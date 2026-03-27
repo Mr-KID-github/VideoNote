@@ -125,6 +125,12 @@ cp .env.example .env
 python main.py
 ```
 
+If you want to use `TRANSCRIBER_TYPE=faster-whisper`, install the optional local-transcriber dependencies as well:
+
+```bash
+pip install -r requirements.local-transcribers.txt
+```
+
 Backend dev with reload:
 
 ```bash
@@ -189,6 +195,8 @@ Notes:
 - The backend container runs database schema initialization automatically on startup.
 - Frontend runtime config is injected at container start, so you do not need a separate frontend build per environment.
 - The Raspberry Pi deployment target uses this same compose stack. Supabase is no longer part of the runtime architecture.
+- The backend also exposes an HTTP MCP endpoint at `/mcp` for LAN clients that can talk to an MCP server over HTTP JSON-RPC.
+- The Raspberry Pi deploy helpers force `DOCKER_DEFAULT_PLATFORM=linux/arm/v7` on the remote host to avoid incorrect `arm/v5` image selection on 32-bit Raspberry Pi OS userlands.
 
 ## Raspberry Pi LAN Deployment
 
@@ -222,6 +230,13 @@ What the deploy script does:
 
 Pi-specific LAN overrides are documented in [deploy/pi/lan.env.example](/Users/25772/Desktop/Project/VideoNote/deploy/pi/lan.env.example).
 
+After deployment:
+
+- Web app: `http://<pi-lan-ip>:<FRONTEND_PORT>`
+- MCP endpoint: `http://<pi-lan-ip>:<BACKEND_PORT>/mcp`
+
+The MCP endpoint is exposed from the FastAPI backend so LAN clients can connect directly without needing a local stdio process.
+
 ## Auth Model
 
 VINote no longer depends on Supabase for browser auth.
@@ -246,6 +261,8 @@ Core generation endpoints remain in the FastAPI backend:
 - `POST /api/generate`
 - `GET /api/task/{task_id}`
 - `GET /api/task/{task_id}/artifacts/{asset_path}`
+- `POST /mcp`
+- `GET /mcp`
 
 Generation requests accept an optional `summary_mode` field with `default`, `accurate`, or `oneshot`.
 Generated notes now include per-section video jump links and API-served screenshot assets under the task artifact route above.

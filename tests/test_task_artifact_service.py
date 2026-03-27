@@ -54,6 +54,19 @@ class TaskArtifactServiceTest(unittest.TestCase):
             self.assertEqual(result_payload["output_path"], str(final_dir))
             self.assertIn("DemoTitle", final_dir.name)
 
+    def test_stage_media_file_copies_into_media_directory(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            service = TaskArtifactService(Path(temp_dir))
+            task_dir = service.create_task_dir("task-stage")
+            source_file = Path(temp_dir) / "source.mp4"
+            source_file.write_bytes(b"video")
+
+            staged = service.stage_media_file(task_dir, str(source_file), target_stem="source_video")
+
+            self.assertTrue(staged.exists())
+            self.assertEqual(staged.parent.name, "media")
+            self.assertEqual(staged.read_bytes(), b"video")
+
 
 if __name__ == "__main__":
     unittest.main()

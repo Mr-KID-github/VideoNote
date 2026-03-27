@@ -94,7 +94,7 @@ def get_task_artifact(task_id: str, asset_path: str):
         raise HTTPException(status_code=404, detail="Task not found")
 
     normalized_parts = Path(asset_path).parts
-    if not normalized_parts or normalized_parts[0] != "screenshots":
+    if not normalized_parts or normalized_parts[0] not in {"screenshots", "media"}:
         raise HTTPException(status_code=404, detail="Artifact not found")
 
     requested_path = (task_dir / asset_path).resolve()

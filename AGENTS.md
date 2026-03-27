@@ -11,9 +11,10 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
+    - `mcp_service.py`: shared MCP tool definitions and JSON-RPC request handling used by both the stdio server and the HTTP `/mcp` endpoint.
     - `note_media_service.py`: selects key moments, then adds heading timestamps and screenshot markers for those moments after summarization.
     - `transcription_service.py`: transcriber selection, chunking, ffmpeg/ffprobe helpers.
     - `llm_service.py`: resolves LLM config from request overrides, saved model profiles, or env defaults.
@@ -49,6 +50,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Build, Run, and Dev Commands
 - Backend install: `pip install -r requirements.txt`
+- Optional local transcriber extras: `pip install -r requirements.local-transcribers.txt` when using `TRANSCRIBER_TYPE=faster-whisper`
 - Backend dev server: `uvicorn main:app --host 0.0.0.0 --port 8900 --reload`
 - Backend direct run: `python main.py`
 - Frontend install: `cd frontend && npm install`
@@ -60,6 +62,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 Default local ports:
 - Backend API/docs: `http://127.0.0.1:8900`
 - Frontend dev server: `http://localhost:3100`
+- Backend MCP endpoint: `http://127.0.0.1:8900/mcp`
 
 ## Environment and Configuration
 Backend settings live in root `.env` and are loaded by `app/config.py`.
@@ -67,6 +70,7 @@ Backend settings live in root `.env` and are loaded by `app/config.py`.
 Important backend variables:
 - `LLM_*`: default summarizer provider/model/base URL/API key.
 - `TRANSCRIBER_TYPE`: `groq`, `whisper`, `faster-whisper`, `sensevoice`, or `sensevoice-local`.
+- `TRANSCRIBER_TYPE=faster-whisper` also requires `requirements.local-transcribers.txt` to be installed.
 - `GROQ_API_KEY`: required when using `groq`.
 - `WHISPER_*`, `FASTER_WHISPER_COMPUTE_TYPE`, `SENSEVOICE_*`: provider-specific transcription settings.
 - `SUMMARY_DEFAULT_MAX_CHARS`, `SUMMARY_DEFAULT_MAX_SEGMENTS`: thresholds that decide when `default` mode upgrades from one-shot to hierarchical summarization.
@@ -86,6 +90,7 @@ Recommended checks after code changes:
 - Backend unit tests: `pytest tests`
 - Frontend type/build check: `cd frontend && npm run build`
 - API smoke check: open `http://127.0.0.1:8900/docs`
+- MCP smoke check: `POST http://127.0.0.1:8900/mcp` with JSON-RPC `initialize` or `tools/list`
 - Pipeline smoke check: run one sample generation and inspect the created folder under `output/`
 - Share-link smoke check: generate one note, click Share in the editor, and open the returned `/share/{token}` URL from another LAN device
 

@@ -38,11 +38,22 @@ def get_note_media(note_id: str, user: AuthenticatedUser = Depends(get_current_u
     if not task_dir:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
 
-    audio_meta = _artifact_service.load_audio_meta(task_dir)
-    if not audio_meta:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+    media_dir = task_dir / "media"
+    media_candidates = [
+        path for path in sorted(media_dir.glob("*"))
+        if path.is_file() and path.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov", ".mp3", ".m4a", ".wav", ".ogg"}
+    ]
+    preferred_media = next((path for path in media_candidates if path.suffix.lower() in {".mp4", ".mkv", ".webm", ".mov"}), None)
+    if not preferred_media:
+        preferred_media = next(iter(media_candidates), None)
+    if preferred_media:
+        media_path = preferred_media.resolve()
+    else:
+        audio_meta = _artifact_service.load_audio_meta(task_dir)
+        if not audio_meta:
+            raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
+        media_path = Path(audio_meta.file_path).resolve()
 
-    media_path = Path(audio_meta.file_path).resolve()
     if not media_path.exists() or not media_path.is_file():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Media not found")
 

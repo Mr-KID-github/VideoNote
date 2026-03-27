@@ -2,6 +2,7 @@
 Task artifact storage for note generation jobs.
 """
 import json
+import shutil
 from dataclasses import asdict
 from datetime import datetime
 from pathlib import Path
@@ -79,6 +80,18 @@ class TaskArtifactService:
 
     def save_markdown(self, task_dir: Path, markdown: str) -> None:
         self.write_text(task_dir / "note.md", markdown)
+
+    def stage_media_file(self, task_dir: Path, source_path: str, *, target_stem: str) -> Path:
+        source = Path(source_path).resolve()
+        if not source.exists() or not source.is_file():
+            raise FileNotFoundError(f"Media file does not exist: {source_path}")
+
+        media_dir = task_dir / "media"
+        media_dir.mkdir(parents=True, exist_ok=True)
+        target_path = media_dir / f"{target_stem}{source.suffix.lower()}"
+        if source != target_path:
+            shutil.copy2(source, target_path)
+        return target_path
 
     def update_status(self, task_dir: Path, status: str, message: str = "") -> None:
         status_file = task_dir / "status.json"
