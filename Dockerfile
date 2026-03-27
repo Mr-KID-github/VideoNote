@@ -6,9 +6,20 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg ca-certificates \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    packages='ffmpeg ca-certificates gcc g++ make libffi-dev libssl-dev libpq5 cargo rustc pkg-config'; \
+    apt-get update -o Acquire::Retries=10; \
+    for attempt in 1 2 3 4 5; do \
+        if apt-get install -y --fix-missing --no-install-recommends $packages; then \
+            break; \
+        fi; \
+        if [ "$attempt" -eq 5 ]; then \
+            exit 1; \
+        fi; \
+        apt-get install -f -y || true; \
+        sleep 5; \
+    done; \
+    rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt ./
 

@@ -11,9 +11,11 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
+    - `mcp_service.py`: shared MCP tool definitions and JSON-RPC request handling used by both the stdio server and the HTTP `/mcp` endpoint.
+    - `note_media_service.py`: selects key moments, then adds heading timestamps and screenshot markers for those moments after summarization.
     - `transcription_service.py`: transcriber selection, chunking, ffmpeg/ffprobe helpers.
     - `llm_service.py`: resolves LLM config from request overrides, saved model profiles, or env defaults.
     - `task_artifact_service.py`: persists status/result/transcript/markdown artifacts under `output/`.
@@ -42,12 +44,13 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 2. `NoteService` creates a task directory under `output/`, downloads or prepares audio, and updates `status.json`.
 3. `TranscriptionService` loads the selected transcriber, optionally chunks long audio, and saves `transcript.json`.
 4. `LLMService` resolves the active model configuration and generates Markdown from transcript segments using the requested summary mode (`default`, `accurate`, or `oneshot`).
-5. `ScreenshotService` optionally downloads the full video and injects extracted frames into note Markdown.
+5. `NoteMediaService` enriches the generated Markdown with section-level timestamp jump links and screenshot markers, then `ScreenshotService` downloads the full video and injects extracted frames.
 6. `TaskArtifactService` writes `note.md`, `result.json`, `status.json`, and the `.task_id` mapping.
-7. Frontend polls `/api/task/{task_id}`, stores the final note row in the backend `notes` table, and can optionally generate a public `/share/{token}` link for LAN access.
+7. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, and can optionally generate a public `/share/{token}` link for LAN access.
 
 ## Build, Run, and Dev Commands
 - Backend install: `pip install -r requirements.txt`
+- Optional local transcriber extras: `pip install -r requirements.local-transcribers.txt` when using `TRANSCRIBER_TYPE=faster-whisper`
 - Backend dev server: `uvicorn main:app --host 0.0.0.0 --port 8900 --reload`
 - Backend direct run: `python main.py`
 - Frontend install: `cd frontend && npm install`
@@ -59,6 +62,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 Default local ports:
 - Backend API/docs: `http://127.0.0.1:8900`
 - Frontend dev server: `http://localhost:3100`
+- Backend MCP endpoint: `http://127.0.0.1:8900/mcp`
 
 ## Environment and Configuration
 Backend settings live in root `.env` and are loaded by `app/config.py`.
@@ -66,6 +70,7 @@ Backend settings live in root `.env` and are loaded by `app/config.py`.
 Important backend variables:
 - `LLM_*`: default summarizer provider/model/base URL/API key.
 - `TRANSCRIBER_TYPE`: `groq`, `whisper`, `faster-whisper`, `sensevoice`, or `sensevoice-local`.
+- `TRANSCRIBER_TYPE=faster-whisper` also requires `requirements.local-transcribers.txt` to be installed.
 - `GROQ_API_KEY`: required when using `groq`.
 - `WHISPER_*`, `FASTER_WHISPER_COMPUTE_TYPE`, `SENSEVOICE_*`: provider-specific transcription settings.
 - `SUMMARY_DEFAULT_MAX_CHARS`, `SUMMARY_DEFAULT_MAX_SEGMENTS`: thresholds that decide when `default` mode upgrades from one-shot to hierarchical summarization.
@@ -85,6 +90,7 @@ Recommended checks after code changes:
 - Backend unit tests: `pytest tests`
 - Frontend type/build check: `cd frontend && npm run build`
 - API smoke check: open `http://127.0.0.1:8900/docs`
+- MCP smoke check: `POST http://127.0.0.1:8900/mcp` with JSON-RPC `initialize` or `tools/list`
 - Pipeline smoke check: run one sample generation and inspect the created folder under `output/`
 - Share-link smoke check: generate one note, click Share in the editor, and open the returned `/share/{token}` URL from another LAN device
 

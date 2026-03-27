@@ -46,7 +46,12 @@ def create_transcriber() -> Transcriber:
         return WhisperTranscriber(model_size=settings.whisper_model_size, device=settings.whisper_device)
 
     if t_type == "faster-whisper":
-        from app.transcribers.faster_whisper_transcriber import FasterWhisperTranscriber
+        try:
+            from app.transcribers.faster_whisper_transcriber import FasterWhisperTranscriber
+        except ImportError as exc:
+            raise RuntimeError(
+                "TRANSCRIBER_TYPE=faster-whisper requires `pip install -r requirements.local-transcribers.txt`."
+            ) from exc
 
         return FasterWhisperTranscriber(
             model_size=settings.whisper_model_size,

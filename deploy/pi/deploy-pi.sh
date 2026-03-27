@@ -2,13 +2,13 @@
 set -euo pipefail
 
 HOST="${1:-}"
-USER_NAME="${PI_USER:-}"
-PORT="${PI_PORT:-22}"
-BRANCH="${PI_BRANCH:-main}"
-REPO_URL="${PI_REPO_URL:-https://github.com/Mr-KID-github/VideoNote.git}"
-REMOTE_DIR="${PI_REMOTE_DIR:-}"
-ENV_FILE="${PI_ENV_FILE:-.env}"
-SKIP_PUSH="${PI_SKIP_PUSH:-false}"
+USER_NAME=""
+PORT=""
+BRANCH=""
+REPO_URL=""
+REMOTE_DIR=""
+ENV_FILE=""
+SKIP_PUSH=""
 
 for cmd in git ssh scp; do
   if ! command -v "${cmd}" >/dev/null 2>&1; then
@@ -36,9 +36,12 @@ HOST="${HOST:-${PI_HOST:-}}"
 USER_NAME="${USER_NAME:-${PI_USER:-pi}}"
 PORT="${PORT:-${PI_PORT:-22}}"
 BRANCH="${BRANCH:-${PI_BRANCH:-main}}"
-REMOTE_DIR="${REMOTE_DIR:-${PI_REMOTE_DIR:-/home/${USER_NAME}/vinote}}"
+REPO_URL="${REPO_URL:-${PI_REPO_URL:-https://github.com/Mr-KID-github/VideoNote.git}}"
 ENV_FILE="${ENV_FILE:-${PI_ENV_FILE:-.env}}"
+SKIP_PUSH="${SKIP_PUSH:-${PI_SKIP_PUSH:-false}}"
+REMOTE_DIR="${REMOTE_DIR:-${PI_REMOTE_DIR:-/home/${USER_NAME}/vinote}}"
 ENV_PATH="${REPO_ROOT}/${ENV_FILE}"
+BACKEND_PORT_VALUE="8900"
 
 if [[ -z "${HOST}" ]]; then
   echo "Missing Raspberry Pi host. Pass it as the first argument or create deploy/pi/local.env." >&2
@@ -52,6 +55,10 @@ fi
 
 if grep -q '^FRONTEND_PORT=' "${ENV_PATH}"; then
   FRONTEND_PORT_VALUE="$(grep '^FRONTEND_PORT=' "${ENV_PATH}" | tail -n 1 | cut -d'=' -f2-)"
+fi
+
+if grep -q '^BACKEND_PORT=' "${ENV_PATH}"; then
+  BACKEND_PORT_VALUE="$(grep '^BACKEND_PORT=' "${ENV_PATH}" | tail -n 1 | cut -d'=' -f2-)"
 fi
 
 if [[ "${SKIP_PUSH}" != "true" ]] && [[ -n "$(git -C "${REPO_ROOT}" status --short)" ]]; then
@@ -115,6 +122,7 @@ rm -f "${REMOTE_ENV}"
 
 cd "${REMOTE_DIR}"
 export COMPOSE_PROJECT_NAME=vinote
+export DOCKER_DEFAULT_PLATFORM=linux/arm/v7
 
 mkdir -p data output
 
@@ -129,3 +137,4 @@ if [[ "${FRONTEND_PORT_VALUE}" == "80" ]]; then
 else
   echo "Open in LAN: http://${HOST}:${FRONTEND_PORT_VALUE}"
 fi
+echo "MCP endpoint: http://${HOST}:${BACKEND_PORT_VALUE}/mcp"

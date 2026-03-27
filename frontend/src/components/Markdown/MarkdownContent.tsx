@@ -1,13 +1,63 @@
+import type { ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
+import {
+  extractSecondsFromHref,
+  isLocalMediaHref,
+  isSameVideoTarget,
+  resolveContentUrl,
+} from '../../lib/videoLinks'
+import { slugifyHeadingText } from '../../lib/markdownKeyMoments'
 
 interface MarkdownContentProps {
   content: string
   className?: string
+  videoUrl?: string
+  mediaUrl?: string
+  onVideoJump?: (seconds: number) => void
 }
 
-export function MarkdownContent({ content, className }: MarkdownContentProps) {
+function flattenText(children: ReactNode): string {
+  if (typeof children === 'string' || typeof children === 'number') {
+    return String(children)
+  }
+
+  if (Array.isArray(children)) {
+    return children.map((child) => flattenText(child)).join('')
+  }
+
+  if (children && typeof children === 'object' && 'props' in children) {
+    return flattenText((children as { props?: { children?: ReactNode } }).props?.children ?? '')
+  }
+
+  return ''
+}
+
+function slugifyHeading(children: ReactNode) {
+  return slugifyHeadingText(flattenText(children))
+}
+
+function createHeading(level: 'h1' | 'h2' | 'h3', className: string) {
+  return function Heading({ children }: { children?: ReactNode }) {
+    const id = slugifyHeading(children)
+    const Tag = level
+    return (
+      <Tag id={id} className={`${className} group`}>
+        <span>{children}</span>
+        <a
+          href={`#${id}`}
+          className="ml-2 align-middle text-sm text-gray-400 no-underline opacity-0 transition hover:text-primary-light group-hover:opacity-100"
+          aria-label={`Link to ${id}`}
+        >
+          #
+        </a>
+      </Tag>
+    )
+  }
+}
+
+export function MarkdownContent({ content, className, videoUrl, mediaUrl, onVideoJump }: MarkdownContentProps) {
   return (
     <div className={className}>
       <ReactMarkdown
@@ -29,13 +79,55 @@ export function MarkdownContent({ content, className }: MarkdownContentProps) {
               </code>
             )
           },
-          h1: ({ children }) => <h1 className="text-2xl font-bold mb-4 pb-2 border-b">{children}</h1>,
-          h2: ({ children }) => <h2 className="text-xl font-bold mt-6 mb-3">{children}</h2>,
-          h3: ({ children }) => <h3 className="text-lg font-semibold mt-4 mb-2">{children}</h3>,
+          h1: createHeading('h1', 'text-2xl font-bold mb-4 pb-2 border-b scroll-mt-24'),
+          h2: createHeading('h2', 'text-xl font-bold mt-6 mb-3 scroll-mt-24'),
+          h3: createHeading('h3', 'text-lg font-semibold mt-4 mb-2 scroll-mt-24'),
           p: ({ children }) => <p className="mb-3 leading-relaxed">{children}</p>,
           ul: ({ children }) => <ul className="list-disc pl-6 mb-3">{children}</ul>,
           ol: ({ children }) => <ol className="list-decimal pl-6 mb-3">{children}</ol>,
           li: ({ children }) => <li className="mb-1">{children}</li>,
+          a: ({ href, children }) => {
+            const resolvedHref = href ? resolveContentUrl(href) : undefined
+            return (
+              <a
+                href={resolvedHref}
+                target="_blank"
+                rel="noreferrer"
+                className="text-primary-light underline underline-offset-2"
+                onClick={(event) => {
+                  if (!resolvedHref || !onVideoJump) {
+                    return
+                  }
+
+                  const matchesSource =
+                    Boolean(videoUrl && isSameVideoTarget(resolvedHref, videoUrl)) ||
+                    Boolean(mediaUrl && isLocalMediaHref(resolvedHref))
+
+                  if (!matchesSource) {
+                    return
+                  }
+
+                  const seconds = extractSecondsFromHref(resolvedHref)
+                  if (seconds === null) {
+                    return
+                  }
+
+                  event.preventDefault()
+                  onVideoJump(seconds)
+                }}
+              >
+                {children}
+              </a>
+            )
+          },
+          img: ({ src, alt }) => (
+            <img
+              src={src ? resolveContentUrl(src) : undefined}
+              alt={alt || 'Screenshot'}
+              className="mb-4 rounded-2xl border border-gray-200 shadow-sm dark:border-gray-700"
+              loading="lazy"
+            />
+          ),
           blockquote: ({ children }) => (
             <blockquote className="border-l-4 border-primary-light dark:border-primary-dark pl-4 italic my-4">
               {children}

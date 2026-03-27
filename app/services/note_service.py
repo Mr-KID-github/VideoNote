@@ -14,6 +14,7 @@ from app.llm.prompts import normalize_output_language, normalize_summary_mode
 from app.models.audio import AudioDownloadResult
 from app.models.note import NoteResult
 from app.services.llm_service import LLMService
+from app.services.note_media_service import NoteMediaService
 from app.services.screenshot_service import ScreenshotService
 from app.services.task_artifact_service import TaskArtifactService
 from app.services.transcription_service import TranscriptionService, create_transcriber
@@ -29,12 +30,14 @@ class NoteService:
         llm_service: LLMService | None = None,
         artifact_service: TaskArtifactService | None = None,
         screenshot_service: ScreenshotService | None = None,
+        media_service: NoteMediaService | None = None,
     ):
         self.downloader: Downloader = downloader or YtdlpDownloader()
         self.transcription_service = transcription_service or TranscriptionService(create_transcriber())
         self.llm_service = llm_service or LLMService()
         self.artifact_service = artifact_service or TaskArtifactService()
         self.screenshot_service = screenshot_service or ScreenshotService(self.downloader)
+        self.media_service = media_service or NoteMediaService()
         transcriber_name = getattr(
             getattr(self.transcription_service, "transcriber", None),
             "__class__",
@@ -235,13 +238,38 @@ class NoteService:
             )
             step_timings["summarize"] = time.time() - step_start
 
+            local_audio_path = self.artifact_service.stage_media_file(
+                final_dir,
+                audio_meta.file_path,
+                target_stem="source_audio",
+            )
+            media_url = f"/api/task/{task_id}/artifacts/media/{local_audio_path.name}"
+            local_video_path = None
+
             if source_video_url:
+                prepared_video = self.screenshot_service.prepare_local_video(
+                    video_url=source_video_url,
+                    task_dir=final_dir,
+                    task_id=task_id,
+                )
+                if prepared_video:
+                    local_video_path, media_url = prepared_video
+
+                markdown = self.media_service.enrich_markdown(
+                    markdown=markdown,
+                    transcript_segments=transcript.segments,
+                    video_url=media_url,
+                    output_language=resolved_output_language,
+                )
                 step_start = time.time()
                 self.artifact_service.update_status(final_dir, "screenshots", "Processing screenshots...")
                 markdown = self.screenshot_service.inject_screenshots(
                     video_url=source_video_url,
                     markdown=markdown,
                     task_dir=final_dir,
+                    task_id=task_id,
+                    media_url=media_url,
+                    local_video_path=local_video_path,
                 )
                 step_timings["screenshots"] = time.time() - step_start
 

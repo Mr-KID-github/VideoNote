@@ -1,0 +1,162 @@
+import tempfile
+import unittest
+from contextlib import contextmanager
+from pathlib import Path
+from unittest.mock import patch
+
+from fastapi import FastAPI
+from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session, sessionmaker
+
+from app.db import Base
+from app.models.auth import AuthenticatedUser
+from app.models.audio import AudioDownloadResult
+from app.models.note_library import NoteCreateRequest
+from app.routers import note_library
+from app.services.auth_service import get_current_user
+from app.services.note_repository import NoteRepository
+from app.services.task_artifact_service import TaskArtifactService
+
+
+class NoteLibraryRouterTest(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.db_path = Path(self.temp_dir.name) / "notes-router.db"
+        self.media_dir = Path(self.temp_dir.name) / "media"
+        self.media_dir.mkdir(parents=True, exist_ok=True)
+        self.output_dir = Path(self.temp_dir.name) / "output"
+        self.output_dir.mkdir(parents=True, exist_ok=True)
+        self.engine = create_engine(
+            f"sqlite:///{self.db_path.as_posix()}",
+            future=True,
+            connect_args={"check_same_thread": False},
+        )
+        self.session_factory = sessionmaker(
+            bind=self.engine,
+            autoflush=False,
+            autocommit=False,
+            expire_on_commit=False,
+            class_=Session,
+        )
+        Base.metadata.create_all(self.engine)
+        self.repository = NoteRepository()
+        self.artifact_service = TaskArtifactService(output_dir=self.output_dir)
+
+        self.app = FastAPI()
+        self.app.include_router(note_library.router, prefix="/api")
+        self.app.dependency_overrides[get_current_user] = lambda: AuthenticatedUser(user_id="user-1")
+        self.client = TestClient(self.app)
+
+    def tearDown(self):
+        self.client.close()
+        self.engine.dispose()
+        self.temp_dir.cleanup()
+
+    @contextmanager
+    def _session_scope(self):
+        db = self.session_factory()
+        try:
+            yield db
+            db.commit()
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
+
+    def test_get_note_media_streams_task_audio(self):
+        media_file = self.media_dir / "episode.mp3"
+        media_file.write_bytes(b"fake-audio")
+        task_dir = self.artifact_service.create_task_dir("task-audio")
+        self.artifact_service.update_status(task_dir, "success", "ready")
+        self.artifact_service.save_audio_meta(
+            task_dir,
+            AudioDownloadResult(
+                file_path=str(media_file),
+                title="Episode",
+                duration=42.0,
+                video_id="episode-1",
+                platform="podcast",
+            ),
+        )
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Audio note",
+                    content="body",
+                    video_url="https://www.xiaoyuzhoufm.com/episode/demo",
+                    task_id="task-audio",
+                ),
+            )
+
+            response = self.client.get(f"/api/notes/{note.id}/media")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"fake-audio")
+        self.assertEqual(response.headers["content-type"], "audio/mpeg")
+
+    def test_get_note_media_prefers_staged_video_artifact(self):
+        media_file = self.media_dir / "episode.mp3"
+        media_file.write_bytes(b"fake-audio")
+        task_dir = self.artifact_service.create_task_dir("task-video")
+        self.artifact_service.update_status(task_dir, "success", "ready")
+        staged_video = self.artifact_service.stage_media_file(task_dir, str(media_file), target_stem="source_video")
+        staged_video = staged_video.with_suffix(".mp4")
+        staged_video.write_bytes(b"fake-video")
+        self.artifact_service.save_audio_meta(
+            task_dir,
+            AudioDownloadResult(
+                file_path=str(media_file),
+                title="Episode",
+                duration=42.0,
+                video_id="episode-1",
+                platform="youtube",
+            ),
+        )
+
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(
+                    title="Video note",
+                    content="body",
+                    video_url="https://www.youtube.com/watch?v=demo",
+                    task_id="task-video",
+                ),
+            )
+
+            response = self.client.get(f"/api/notes/{note.id}/media")
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b"fake-video")
+        self.assertEqual(response.headers["content-type"], "video/mp4")
+
+    def test_get_note_media_returns_404_without_task_id(self):
+        with patch("app.services.note_repository.session_scope", self._session_scope), patch.object(
+            note_library,
+            "_artifact_service",
+            self.artifact_service,
+        ):
+            note = self.repository.create_note(
+                "user-1",
+                NoteCreateRequest(title="No media", content="body"),
+            )
+
+            response = self.client.get(f"/api/notes/{note.id}/media")
+
+        self.assertEqual(response.status_code, 404)
+
+
+if __name__ == "__main__":
+    unittest.main()

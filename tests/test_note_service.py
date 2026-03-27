@@ -72,7 +72,7 @@ class FakeSummarizer:
                 "output_language": output_language,
             }
         )
-        return f"# {title}\n\n{segments[0].text}\n\n[[Screenshot:00:01]]"
+        return f"# {title}\n\n## Key moment\n\n{segments[0].text} [00:01]\n\n[[Screenshot:00:01]]"
 
 
 class FakeLLMService:
@@ -93,11 +93,29 @@ class FakeLLMService:
 
 class FakeScreenshotService:
     def __init__(self):
-        self.calls: list[tuple[str, str, str]] = []
+        self.calls: list[tuple[str, str, str, str, str, str | None]] = []
 
-    def inject_screenshots(self, *, video_url: str, markdown: str, task_dir: Path) -> str:
-        self.calls.append((video_url, markdown, str(task_dir)))
-        return markdown.replace("[[Screenshot:00:01]]", "![Screenshot 00:01](screenshots/frame_1.png)")
+    def prepare_local_video(self, *, video_url: str, task_dir: Path, task_id: str):
+        video_path = task_dir / "media" / "source_video.mp4"
+        video_path.parent.mkdir(parents=True, exist_ok=True)
+        video_path.write_text("fake video", encoding="utf-8")
+        return video_path, f"/api/task/{task_id}/artifacts/media/{video_path.name}"
+
+    def inject_screenshots(
+        self,
+        *,
+        video_url: str,
+        markdown: str,
+        task_dir: Path,
+        task_id: str,
+        media_url: str,
+        local_video_path: Path | None = None,
+    ) -> str:
+        self.calls.append((video_url, markdown, str(task_dir), task_id, media_url, str(local_video_path) if local_video_path else None))
+        return markdown.replace(
+            "[[Screenshot:00:01]]",
+            f"[![Screenshot 00:01](/api/task/{task_id}/artifacts/screenshots/frame_1.png)]({media_url}?t=1)",
+        )
 
 
 class NoteServiceTest(unittest.TestCase):
@@ -136,6 +154,7 @@ class NoteServiceTest(unittest.TestCase):
             self.assertEqual(len(screenshot_service.calls), 1)
             self.assertTrue(result.output_dir)
             self.assertIn("![Screenshot 00:01]", result.markdown)
+            self.assertIn("/api/task/task-1/artifacts/media/source_video.mp4", result.markdown)
 
             saved_status = service.get_status("task-1")
             saved_result = service.get_result("task-1")

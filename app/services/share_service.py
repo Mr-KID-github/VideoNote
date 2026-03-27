@@ -7,6 +7,7 @@ from fastapi import Request
 
 from app.config import settings
 from app.models.note_library import PublicSharedNoteResponse
+from app.services.video_link_service import build_embed_url
 
 _LOCAL_HOSTS = {"127.0.0.1", "localhost", "0.0.0.0", "::1"}
 
@@ -34,6 +35,23 @@ def render_shared_note_html(note: PublicSharedNoteResponse) -> str:
             '<p class="meta"><strong>Source video:</strong> '
             f'<a href="{safe_video_url}" target="_blank" rel="noreferrer">{safe_video_url}</a></p>'
         )
+    video_embed = ""
+    if note.video_url:
+        embed_url = build_embed_url(note.video_url)
+        if embed_url:
+            safe_embed_url = html.escape(embed_url, quote=True)
+            video_embed = f"""
+        <aside class="video-panel">
+          <div class="video-panel-inner">
+            <div class="video-title">Source Video</div>
+            <iframe
+              src="{safe_embed_url}"
+              title="Source video"
+              loading="lazy"
+              allowfullscreen
+            ></iframe>
+          </div>
+        </aside>"""
 
     return f"""<!DOCTYPE html>
 <html lang="en">
@@ -53,7 +71,7 @@ def render_shared_note_html(note: PublicSharedNoteResponse) -> str:
         padding: 32px 16px;
       }}
       main {{
-        max-width: 880px;
+        max-width: 1280px;
         margin: 0 auto;
         background: #ffffff;
         border: 1px solid #dbe3f1;
@@ -79,6 +97,32 @@ def render_shared_note_html(note: PublicSharedNoteResponse) -> str:
       .content {{
         padding: 28px 32px 32px;
         line-height: 1.75;
+      }}
+      .layout {{
+        display: grid;
+        gap: 0;
+      }}
+      .video-panel {{
+        padding: 24px 24px 24px 0;
+        background: #f8fafc;
+        border-left: 1px solid #e2e8f0;
+      }}
+      .video-panel-inner {{
+        position: sticky;
+        top: 24px;
+      }}
+      .video-title {{
+        font-size: 14px;
+        font-weight: 600;
+        color: #475569;
+        margin: 0 0 12px;
+      }}
+      .video-panel iframe {{
+        width: 100%;
+        aspect-ratio: 16 / 9;
+        border: 0;
+        border-radius: 16px;
+        background: #0f172a;
       }}
       .content h1,
       .content h2,
@@ -174,6 +218,18 @@ def render_shared_note_html(note: PublicSharedNoteResponse) -> str:
       a {{
         color: #2563eb;
       }}
+      @media (min-width: 1024px) {{
+        .layout.has-video {{
+          grid-template-columns: minmax(0, 1fr) 360px;
+        }}
+      }}
+      @media (max-width: 1023px) {{
+        .video-panel {{
+          padding: 0 24px 24px;
+          border-left: 0;
+          border-top: 1px solid #e2e8f0;
+        }}
+      }}
     </style>
   </head>
   <body>
@@ -185,9 +241,12 @@ def render_shared_note_html(note: PublicSharedNoteResponse) -> str:
         <p class="meta">Updated: {html.escape(note.updated_at.isoformat())}</p>
         {video_link}
       </header>
-      <section class="content">
-        {rendered_content}
-      </section>
+      <div class="layout{' has-video' if video_embed else ''}">
+        <section class="content">
+          {rendered_content}
+        </section>
+        {video_embed}
+      </div>
     </main>
   </body>
 </html>"""
