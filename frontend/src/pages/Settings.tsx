@@ -18,16 +18,16 @@ export function Settings() {
   const { copy, language, setLanguage } = useI18n()
 
   return (
-    <div className="max-w-5xl mx-auto p-8">
-      <h2 className="text-2xl font-bold mb-6">{copy.settings.title}</h2>
+    <div className="max-w-[1440px] mx-auto p-6 lg:p-8">
+      <h2 className="text-2xl font-bold mb-6 lg:mb-8">{copy.settings.title}</h2>
 
-      <div className="flex gap-8">
+      <div className="flex flex-col gap-8 lg:flex-row">
         <SettingsNav activeTab={activeTab} onChange={setActiveTab} />
 
         <div className="flex-1">
           {activeTab === 'profile' && <ProfileSettingsPanel email={user?.email} />}
           {activeTab === 'models' && (
-            <div className="space-y-10">
+            <div className="space-y-8">
               <ModelProfileManager />
               <STTProfileManager />
             </div>

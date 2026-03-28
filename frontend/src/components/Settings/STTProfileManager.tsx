@@ -208,17 +208,22 @@ export function STTProfileManager() {
   ))
 
   return (
-    <div className="space-y-6">
-      <div className="grid gap-6 lg:grid-cols-[1.15fr_0.85fr]">
-        <section className="space-y-4">
-          <div className="flex items-center justify-between">
+    <section className="rounded-[28px] border border-gray-200 bg-gradient-to-br from-white to-gray-50/80 p-5 shadow-sm dark:border-gray-800 dark:from-[#191919] dark:to-[#141414] lg:p-6">
+      <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_380px]">
+        <div className="min-w-0 space-y-4">
+          <div className="flex flex-col gap-4 rounded-3xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-[#1b1b1b] sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h3 className="text-lg font-semibold">{copy.sttProfiles.title}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{copy.sttProfiles.body}</p>
+              <div className="flex items-center gap-3">
+                <h3 className="text-xl font-semibold">{copy.sttProfiles.title}</h3>
+                <span className="rounded-full bg-primary-light/10 px-2.5 py-1 text-xs font-medium text-primary-light dark:bg-primary-dark/10 dark:text-primary-dark">
+                  {profiles.length}
+                </span>
+              </div>
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-gray-500 dark:text-gray-400">{copy.sttProfiles.body}</p>
             </div>
             <button
               onClick={resetForm}
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+              className="inline-flex items-center justify-center gap-2 self-start rounded-xl border border-gray-200 px-4 py-2.5 font-medium hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800 transition-colors"
             >
               <Plus className="w-4 h-4" />
               {copy.sttProfiles.newProfile}
@@ -226,20 +231,21 @@ export function STTProfileManager() {
           </div>
 
           {loading ? (
-            <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700">{copy.sttProfiles.loading}</div>
+            <div className="rounded-3xl border border-gray-200 bg-white p-5 dark:border-gray-800 dark:bg-[#1b1b1b]">{copy.sttProfiles.loading}</div>
           ) : profiles.length === 0 ? (
-            <div className="p-4 rounded-xl border border-dashed border-gray-200 dark:border-gray-700 text-sm text-gray-500 dark:text-gray-400">
+            <div className="rounded-3xl border border-dashed border-gray-200 bg-white p-6 text-sm text-gray-500 dark:border-gray-700 dark:bg-[#1b1b1b] dark:text-gray-400">
               {copy.sttProfiles.empty}
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
               {profiles.map((profile) => (
                 <div
                   key={profile.id}
-                  className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]"
+                  className="rounded-3xl border border-gray-200 bg-white p-5 transition-colors hover:border-gray-300 dark:border-gray-800 dark:bg-[#1b1b1b] dark:hover:border-gray-700"
                 >
-                  <div className="flex items-start justify-between gap-4">
-                    <div>
+                  <div className="space-y-4">
+                    <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 flex-wrap">
                         <h4 className="font-medium">{profile.name}</h4>
                         {profile.isDefault && (
@@ -253,29 +259,29 @@ export function STTProfileManager() {
                           </span>
                         )}
                       </div>
-                      <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">{formatProfileSummary(profile)}</p>
-                      {profile.baseUrl && <p className="text-xs text-gray-400 mt-1 break-all">{profile.baseUrl}</p>}
-                      {profile.apiKeyHint && <p className="text-xs text-gray-400 mt-1">{copy.sttProfiles.keyPrefix} {profile.apiKeyHint}</p>}
+                      <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">{formatProfileSummary(profile)}</p>
+                      {profile.baseUrl && <p className="mt-2 break-all text-xs leading-5 text-gray-400">{profile.baseUrl}</p>}
+                      {profile.apiKeyHint && <p className="mt-1 text-xs text-gray-400">{copy.sttProfiles.keyPrefix} {profile.apiKeyHint}</p>}
                     </div>
-
-                    <div className="flex items-center gap-2">
+                    </div>
+                    <div className="flex flex-wrap gap-2">
                       <button
                         onClick={() => startEdit(profile)}
-                        className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
+                        className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                       >
                         {copy.sttProfiles.edit}
                       </button>
                       {!profile.isDefault && (
                         <button
                           onClick={() => void setDefaultProfile(profile.id)}
-                          className="px-3 py-2 rounded-lg border border-gray-200 dark:border-gray-700 hover:bg-gray-100 dark:hover:bg-gray-800 text-sm"
+                          className="rounded-xl border border-gray-200 px-3 py-2 text-sm hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
                         >
                           {copy.sttProfiles.setDefault}
                         </button>
                       )}
                       <button
                         onClick={() => void deleteProfile(profile.id)}
-                        className="p-2 rounded-lg border border-red-200 text-red-500 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-900/20"
+                        className="rounded-xl border border-red-200 p-2 text-red-500 hover:bg-red-50 dark:border-red-900/30 dark:hover:bg-red-900/20"
                         title={copy.sttProfiles.delete}
                       >
                         <Trash2 className="w-4 h-4" />
@@ -286,17 +292,23 @@ export function STTProfileManager() {
               ))}
             </div>
           )}
-        </section>
+        </div>
 
-        <section className="p-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020] space-y-4">
-          <div className="flex items-center justify-between">
+        <aside className="xl:sticky xl:top-8 xl:self-start">
+          <section className="space-y-4 rounded-3xl border border-gray-200 bg-white p-5 shadow-sm dark:border-gray-800 dark:bg-[#1b1b1b]">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-lg font-semibold">{editingId ? copy.sttProfiles.editTitle : copy.sttProfiles.createTitle}</h3>
-              <p className="text-sm text-gray-500 dark:text-gray-400">{copy.sttProfiles.formBody}</p>
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">{editingId ? copy.sttProfiles.editTitle : copy.sttProfiles.createTitle}</h3>
+                <span className="rounded-full bg-gray-100 px-2.5 py-1 text-xs font-medium text-gray-500 dark:bg-gray-800 dark:text-gray-300">
+                  {editingId ? copy.sttProfiles.edit : copy.sttProfiles.newProfile}
+                </span>
+              </div>
+              <p className="mt-2 text-sm leading-6 text-gray-500 dark:text-gray-400">{copy.sttProfiles.formBody}</p>
             </div>
             <button
               onClick={resetForm}
-              className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-gray-800"
+              className="rounded-xl p-2 hover:bg-gray-100 dark:hover:bg-gray-800"
               title={copy.sttProfiles.resetForm}
             >
               <RotateCcw className="w-4 h-4" />
@@ -452,11 +464,11 @@ export function STTProfileManager() {
             </div>
           )}
 
-          <div className="flex gap-3">
+          <div className="grid gap-3">
             <button
               onClick={() => void handleSave()}
               disabled={saving || !canSave(draft, editingId)}
-              className="flex-1 px-4 py-2.5 rounded-lg bg-primary-light dark:bg-primary-dark text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-60"
+              className="rounded-xl bg-primary-light px-4 py-3 text-white font-medium hover:opacity-90 transition-opacity disabled:opacity-60 dark:bg-primary-dark"
             >
               {editingId ? copy.sttProfiles.saveChanges : copy.sttProfiles.createProfile}
             </button>
@@ -465,8 +477,9 @@ export function STTProfileManager() {
           {requiresApiKey(draft.provider) && (
             <p className="text-xs text-gray-400">{copy.sttProfiles.keyHint}</p>
           )}
-        </section>
+          </section>
+        </aside>
       </div>
-    </div>
+    </section>
   )
 }
