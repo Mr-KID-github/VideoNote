@@ -8,6 +8,7 @@ import { apiJson } from '../lib/api'
 import { useModelProfileStore } from '../stores/modelProfileStore'
 import { useNoteGenerationStore } from '../stores/noteGenerationStore'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
+import { useSTTProfileStore } from '../stores/sttProfileStore'
 
 type TaskResponse = { task_id: string }
 type SummaryMode = 'default' | 'accurate' | 'oneshot'
@@ -42,11 +43,18 @@ export function NoteGenerator() {
   } = useNoteGenerationStore()
   const { saveNote } = useNoteLibraryStore()
   const { profiles, selectedProfileId, selectProfile, loadProfiles } = useModelProfileStore()
+  const {
+    profiles: sttProfiles,
+    selectedProfileId: selectedSTTProfileId,
+    selectProfile: selectSTTProfile,
+    loadProfiles: loadSTTProfiles,
+  } = useSTTProfileStore()
   const navigate = useNavigate()
 
   useEffect(() => {
     void loadProfiles()
-  }, [loadProfiles])
+    void loadSTTProfiles()
+  }, [loadProfiles, loadSTTProfiles])
 
   const pollTaskStatus = (id: string) => {
     pollRef.current = setInterval(async () => {
@@ -116,6 +124,7 @@ export function NoteGenerator() {
           summary_mode: summaryMode,
           output_language: language,
           model_profile_id: selectedProfileId || undefined,
+          stt_profile_id: selectedSTTProfileId || undefined,
         }),
       })
 
@@ -138,6 +147,8 @@ export function NoteGenerator() {
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
   const defaultProfile = profiles.find((profile) => profile.isDefault)
+  const selectedSTTProfile = sttProfiles.find((profile) => profile.id === selectedSTTProfileId)
+  const defaultSTTProfile = sttProfiles.find((profile) => profile.isDefault)
   const summaryModeOptions: Array<{ value: SummaryMode; label: string; description: string }> =
     language === 'zh-CN'
       ? [
@@ -175,6 +186,10 @@ export function NoteGenerator() {
           },
         ]
   const selectedSummaryMode = summaryModeOptions.find((option) => option.value === summaryMode)
+  const formatSTTProfileLabel = (name: string, profile: { provider: string; modelName: string | null; language: string | null }) => {
+    const detail = profile.modelName || profile.language || profile.provider
+    return `${name} / ${detail}`
+  }
 
   return (
     <div className="max-w-2xl mx-auto p-8">
@@ -218,6 +233,31 @@ export function NoteGenerator() {
               : defaultProfile
                 ? copy.generator.activeModelDefault(defaultProfile.name, defaultProfile.modelName)
                 : copy.generator.activeModelBackend}
+          </p>
+        </div>
+
+        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
+          <label className="block text-sm font-medium mb-2">{copy.generator.sttProfileLabel}</label>
+          <select
+            value={selectedSTTProfileId}
+            onChange={(event) => selectSTTProfile(event.target.value)}
+            className="w-full px-4 py-2.5 rounded-lg border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#191919] outline-none focus:ring-2 focus:ring-primary-light"
+          >
+            <option value="">{copy.generator.systemDefaultSTT}</option>
+            {sttProfiles.map((profile) => (
+              <option key={profile.id} value={profile.id}>
+                {formatSTTProfileLabel(profile.name, profile)}
+                {profile.isDefault ? ' (default)' : ''}
+              </option>
+            ))}
+          </select>
+          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
+            {copy.generator.activeSTTPrefix}
+            {selectedSTTProfile
+              ? copy.generator.activeSTTSelected(selectedSTTProfile.name, formatSTTProfileLabel(selectedSTTProfile.name, selectedSTTProfile))
+              : defaultSTTProfile
+                ? copy.generator.activeSTTDefault(defaultSTTProfile.name, formatSTTProfileLabel(defaultSTTProfile.name, defaultSTTProfile))
+                : copy.generator.activeSTTBackend}
           </p>
         </div>
 

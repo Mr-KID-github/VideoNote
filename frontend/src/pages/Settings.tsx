@@ -5,6 +5,7 @@ import { ModelProfileManager } from '../components/Settings/ModelProfileManager'
 import { NotificationSettingsPanel } from '../components/Settings/NotificationSettingsPanel'
 import { PlaceholderSettingsPanel } from '../components/Settings/PlaceholderSettingsPanel'
 import { ProfileSettingsPanel } from '../components/Settings/ProfileSettingsPanel'
+import { STTProfileManager } from '../components/Settings/STTProfileManager'
 import { SettingsNav, type SettingsTab } from '../components/Settings/SettingsNav'
 import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
@@ -25,7 +26,12 @@ export function Settings() {
 
         <div className="flex-1">
           {activeTab === 'profile' && <ProfileSettingsPanel email={user?.email} />}
-          {activeTab === 'models' && <ModelProfileManager />}
+          {activeTab === 'models' && (
+            <div className="space-y-10">
+              <ModelProfileManager />
+              <STTProfileManager />
+            </div>
+          )}
           {activeTab === 'team' && (
             <PlaceholderSettingsPanel
               icon={Shield}

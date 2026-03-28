@@ -3,7 +3,7 @@
 ## Architecture Overview
 VINote is a full-stack video-to-note workspace with three moving parts:
 
-- Backend: FastAPI API for downloading media, transcribing audio, generating Markdown notes, and managing per-user model profiles.
+- Backend: FastAPI API for downloading media, transcribing audio, generating Markdown notes, and managing per-user LLM model profiles plus STT profiles.
 - Frontend: Vite + React + TypeScript app for authentication, note generation, note library browsing, editing, and settings.
 - Database/Auth: Postgres-backed storage plus FastAPI-issued JWT auth stored in an HttpOnly cookie.
 
@@ -11,15 +11,17 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated model-profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
     - `mcp_service.py`: shared MCP tool definitions and JSON-RPC request handling used by both the stdio server and the HTTP `/mcp` endpoint.
     - `note_media_service.py`: selects key moments, then adds heading timestamps and screenshot markers for those moments after summarization.
-    - `transcription_service.py`: transcriber selection, chunking, ffmpeg/ffprobe helpers.
+    - `transcription_service.py`: per-task transcriber selection, chunking, ffmpeg/ffprobe helpers.
     - `llm_service.py`: resolves LLM config from request overrides, saved model profiles, or env defaults.
+    - `stt_profile_service.py`: resolves STT config from per-run selection, saved STT profiles, or env defaults.
     - `task_artifact_service.py`: persists status/result/transcript/markdown artifacts under `output/`.
     - `model_profile_*`: encrypted model profile CRUD and connection testing.
+    - `stt_profile_*`: encrypted STT profile CRUD and provider-specific normalization.
     - `auth_service.py`: local email/password auth plus JWT cookie validation for protected APIs.
     - `share_service.py`: builds public share URLs and renders read-only shared-note HTML.
     - `screenshot_service.py`: replaces `[[Screenshot:mm:ss]]` placeholders with extracted frame images.
@@ -30,8 +32,8 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - `frontend/src/`
   - `pages/`: route-level screens such as home, generator, notes, editor, login, settings.
   - `components/`: reusable UI building blocks.
-  - `stores/`: Zustand stores for auth, theme, note generation, note library, model profiles, and language.
-  - `lib/`: API wrapper, Supabase client, i18n copy, and model-profile client helpers.
+  - `stores/`: Zustand stores for auth, theme, note generation, note library, model profiles, STT profiles, and language.
+  - `lib/`: API wrapper, Supabase client, i18n copy, and model/STT profile client helpers.
 - `supabase/`: local Supabase config, start scripts, and SQL migrations.
 - `tests/`: backend unit tests.
 - `docs/plans/`: product/design implementation notes.
@@ -46,9 +48,10 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 2. `NoteService` creates a task directory under `output/`, downloads or prepares audio, and updates `status.json`.
 3. `TranscriptionService` loads the selected transcriber, optionally chunks long audio, and saves `transcript.json`.
 4. `LLMService` resolves the active model configuration and generates Markdown from transcript segments using the requested summary mode (`default`, `accurate`, or `oneshot`).
-5. `NoteMediaService` enriches the generated Markdown with section-level timestamp jump links and screenshot markers, then `ScreenshotService` downloads the full video and injects extracted frames.
-6. `TaskArtifactService` writes `note.md`, `result.json`, `status.json`, and the `.task_id` mapping.
-7. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, and can optionally generate a public `/share/{token}` link for LAN access.
+5. `TranscriptionService` resolves the active STT configuration in this order: request `stt_profile_id` > signed-in user's default STT profile > `.env` `TRANSCRIBER_*` defaults.
+6. `NoteMediaService` enriches the generated Markdown with section-level timestamp jump links and screenshot markers, then `ScreenshotService` downloads the full video and injects extracted frames.
+7. `TaskArtifactService` writes `note.md`, `result.json`, `status.json`, and the `.task_id` mapping.
+8. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, and can optionally generate a public `/share/{token}` link for LAN access.
 
 ## Build, Run, and Dev Commands
 - Backend install: `pip install -r requirements.txt`
@@ -75,7 +78,7 @@ Backend settings live in root `.env` and are loaded by `app/config.py`.
 
 Important backend variables:
 - `LLM_*`: default summarizer provider/model/base URL/API key.
-- `TRANSCRIBER_TYPE`: `groq`, `whisper`, `faster-whisper`, `sensevoice`, or `sensevoice-local`.
+- `TRANSCRIBER_TYPE`: `groq`, `whisper`, `faster-whisper`, `sensevoice`, or `sensevoice-local`. This is still the fallback when no STT profile is selected.
 - `TRANSCRIBER_TYPE=faster-whisper` also requires `requirements.local-transcribers.txt` to be installed.
 - `GROQ_API_KEY`: required when using `groq`.
 - `WHISPER_*`, `FASTER_WHISPER_COMPUTE_TYPE`, `SENSEVOICE_*`: provider-specific transcription settings.
@@ -85,6 +88,7 @@ Important backend variables:
 - `DATABASE_URL`: required database connection string.
 - `SHARE_BASE_URL`: optional override for generated public share links; when empty, the backend tries to infer a LAN URL automatically.
 - `MODEL_PROFILE_ENCRYPTION_KEY`: required to store/decrypt model profile API keys.
+  - the same encryption key is also used for Groq STT profile API keys
 
 Frontend Vite settings live in `frontend/.env.local`:
 - `VITE_API_BASE_URL` (leave empty for the local Vite proxy, or set an absolute backend URL)
@@ -120,6 +124,6 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 
 ## Notes for Agents
 - The current frontend does not yet upload local files from the browser, even though backend file-based generation endpoints exist.
-- The note generator UI exposes summary mode selection; `default` auto-switches to hierarchical summarization for longer transcripts.
+- The note generator UI exposes both LLM profile selection and STT profile selection; `default` summary mode still auto-switches to hierarchical summarization for longer transcripts.
 - Share links are public read-only links backed by `notes.share_token` and can be disabled from the note editor.
 - If documentation and code disagree, trust the code, then fix the documentation in the same change.

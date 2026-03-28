@@ -17,7 +17,7 @@ from app.services.llm_service import LLMService
 from app.services.note_media_service import NoteMediaService
 from app.services.screenshot_service import ScreenshotService
 from app.services.task_artifact_service import TaskArtifactService
-from app.services.transcription_service import TranscriptionService, create_transcriber
+from app.services.transcription_service import TranscriptionService
 
 logger = logging.getLogger(__name__)
 
@@ -33,16 +33,11 @@ class NoteService:
         media_service: NoteMediaService | None = None,
     ):
         self.downloader: Downloader = downloader or YtdlpDownloader()
-        self.transcription_service = transcription_service or TranscriptionService(create_transcriber())
+        self.transcription_service = transcription_service or TranscriptionService()
         self.llm_service = llm_service or LLMService()
         self.artifact_service = artifact_service or TaskArtifactService()
         self.screenshot_service = screenshot_service or ScreenshotService(self.downloader)
         self.media_service = media_service or NoteMediaService()
-        transcriber_name = getattr(
-            getattr(self.transcription_service, "transcriber", None),
-            "__class__",
-            self.transcription_service.__class__,
-        ).__name__
         llm_config = self.llm_service.resolve_config(
             user_id=None,
             model_profile_id=None,
@@ -52,7 +47,7 @@ class NoteService:
         )
         logger.info(
             "[NoteService] init transcriber=%s llm=%s",
-            transcriber_name,
+            settings.transcriber_type,
             llm_config.model_name,
         )
 
@@ -66,6 +61,7 @@ class NoteService:
         extras: Optional[str] = None,
         output_language: str | None = None,
         model_profile_id: Optional[str] = None,
+        stt_profile_id: Optional[str] = None,
         model_name: Optional[str] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -92,6 +88,7 @@ class NoteService:
                 extras=extras,
                 output_language=output_language,
                 model_profile_id=model_profile_id,
+                stt_profile_id=stt_profile_id,
                 model_name=model_name,
                 api_key=api_key,
                 base_url=base_url,
@@ -116,6 +113,7 @@ class NoteService:
         extras: Optional[str] = None,
         output_language: str | None = None,
         model_profile_id: Optional[str] = None,
+        stt_profile_id: Optional[str] = None,
         model_name: Optional[str] = None,
         api_key: Optional[str] = None,
         base_url: Optional[str] = None,
@@ -144,6 +142,7 @@ class NoteService:
                 extras=extras,
                 output_language=output_language,
                 model_profile_id=model_profile_id,
+                stt_profile_id=stt_profile_id,
                 model_name=model_name,
                 api_key=api_key,
                 base_url=base_url,
@@ -191,6 +190,7 @@ class NoteService:
         extras: str | None,
         output_language: str | None,
         model_profile_id: str | None,
+        stt_profile_id: str | None,
         model_name: str | None,
         api_key: str | None,
         base_url: str | None,
@@ -211,6 +211,8 @@ class NoteService:
                 load_cached=lambda: self.artifact_service.load_transcript(final_dir),
                 save_transcript=lambda result: self.artifact_service.save_transcript(final_dir, result),
                 update_status=lambda status, message: self.artifact_service.update_status(final_dir, status, message),
+                user_id=user_id,
+                stt_profile_id=stt_profile_id,
             )
             step_timings["transcribe"] = time.time() - step_start
 
