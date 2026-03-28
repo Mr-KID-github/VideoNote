@@ -20,7 +20,7 @@ Browser
   -> FastAPI API
      -> Auth service
      -> Note generation pipeline
-     -> Notes / preferences / model profiles repositories
+     -> Notes / preferences / model profiles / STT profiles repositories
      -> PostgreSQL
      -> output/ task artifacts
 ```
@@ -41,6 +41,8 @@ Main backend responsibilities:
   - user preference persistence
 - `app/services/model_profile_repository.py`
   - encrypted model profile persistence
+- `app/services/stt_profile_repository.py`
+  - encrypted and local-safe STT profile persistence
 - `app/downloaders/`, `app/transcribers/`, `app/llm/`
   - media acquisition, transcription, summarization
 
@@ -71,6 +73,8 @@ Main frontend responsibilities:
   - language preference sync via backend API
 - `frontend/src/stores/modelProfileStore.ts`
   - model profile management
+- `frontend/src/stores/sttProfileStore.ts`
+  - STT profile management and per-run selection
 
 More detail is in [docs/architecture.md](/Users/25772/Desktop/Project/VideoNote/docs/architecture.md).
 Human-readable usage docs now live in the VitePress docs site under [docs/](/Users/25772/Desktop/Project/VideoNote/docs).
@@ -84,6 +88,13 @@ Media preview behavior:
 - Embeddable sources such as YouTube and Bilibili render an iframe.
 - Audio-only or non-embeddable sources fall back to `/api/notes/{note_id}/media` so timestamp clicks can still seek the extracted audio.
 - The note editor now supports a split workspace with a draggable divider between Markdown source and rendered preview.
+
+STT profile behavior:
+
+- LLM model profiles and STT profiles are managed separately in Settings.
+- If a run selects an STT profile, the backend uses it for that task only.
+- If no STT profile is selected, the backend falls back to the signed-in user's default STT profile.
+- If the user has no default STT profile, the backend falls back to the existing `TRANSCRIBER_*` values from `.env`.
 
 ## Repository Layout
 
@@ -172,6 +183,14 @@ Backend:
 - `LLM_BASE_URL`
 - `LLM_MODEL`
 - `TRANSCRIBER_TYPE`
+- `GROQ_API_KEY`
+- `WHISPER_MODEL_SIZE`
+- `WHISPER_DEVICE`
+- `FASTER_WHISPER_COMPUTE_TYPE`
+- `SENSEVOICE_BASE_URL`
+- `SENSEVOICE_LANGUAGE`
+- `SENSEVOICE_MODEL_SIZE`
+- `SENSEVOICE_USE_GPU`
 - `SUMMARY_DEFAULT_MAX_CHARS`
 - `SUMMARY_DEFAULT_MAX_SEGMENTS`
 - `SUMMARY_CHUNK_MAX_CHARS`
@@ -216,6 +235,7 @@ Notes:
 - The Raspberry Pi deployment target uses this same compose stack. Supabase is no longer part of the runtime architecture.
 - The backend also exposes an HTTP MCP endpoint at `/mcp` for LAN clients that can talk to an MCP server over HTTP JSON-RPC.
 - The Raspberry Pi deploy helpers force `DOCKER_DEFAULT_PLATFORM=linux/arm/v7` on the remote host to avoid incorrect `arm/v5` image selection on 32-bit Raspberry Pi OS userlands.
+- New authenticated STT profile APIs live under `/api/stt-profiles`; note-generation requests can include `stt_profile_id` alongside `model_profile_id`.
 
 ## Raspberry Pi LAN Deployment
 
