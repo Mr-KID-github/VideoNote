@@ -282,6 +282,10 @@ $dockerStatus = Get-DockerRemoteStatus $piHost $piUser $piPort
 if (-not $dockerStatus.DockerOk) {
     Write-Fail (Get-Loc "DockerDaemonNotRunning")
 
+    # Debug: show actual output
+    $debugInfo = if ($IsChinese) { "调试信息" } else { "Debug info" }
+    Write-Host "  $debugInfo: $($dockerStatus.DockerOutput)" -ForegroundColor Gray
+
     $startDocker = if ($IsChinese) { "请在树莓派上启动 Docker" } else { "Please start Docker on your Raspberry Pi" }
     $retryDeploy = if ($IsChinese) { "然后重新运行此部署" } else { "Then restart this deployment" }
     $retry = if ($IsChinese) { "重试检查" } else { "Retry checks" }
@@ -330,6 +334,10 @@ Select [3]:
 
 if (-not $dockerStatus.ComposeOk) {
     Write-Fail (Get-Loc "DockerComposeNotInstalled")
+
+    # Debug: show actual output
+    $debugInfo = if ($IsChinese) { "调试信息" } else { "Debug info" }
+    Write-Host "  $debugInfo: $($dockerStatus.ComposeOutput)" -ForegroundColor Gray
 
     $installCompose = if ($IsChinese) { "请安装 Docker Compose" } else { "Please install Docker Compose" }
     $cancelOption = if ($IsChinese) { "取消" } else { "Cancel" }

@@ -1,6 +1,15 @@
 ﻿# deploy/pi/interactive-common.ps1
 # Shared utility functions for interactive deployment scripts
 
+# Enable ANSI escape sequence support on Windows
+if ($Host.UI.RawUI) {
+    $Host.UI.RawUI.BackgroundColor = $Host.UI.RawUI.BackgroundColor
+    try {
+        $Host.UI.RawUI.SupportsInteractiveEvents = $true
+    } catch {}
+}
+
+# Use VT escape sequences (supported in PowerShell 7+ and Windows 10 1607+)
 $script:ESC_RESET = "`e[0m"
 $script:ESC_GREEN = "`e[32m"
 $script:ESC_RED = "`e[31m"
@@ -169,14 +178,22 @@ function Load-LocalConfig() {
 
 function Get-DockerRemoteStatus($piHost, $piUser, $piPort) {
     $remote = "$piUser@$piHost"
-    $script = @'
-docker info >/dev/null 2>&1 && echo "DOCKER_OK=1" || echo "DOCKER_OK=0"
-docker compose version >/dev/null 2>&1 && echo "COMPOSE_OK=1" || echo "COMPOSE_OK=0"
-'@
-    $output = ssh -p $piPort $remote $script 2>&1
+
+    # Check Docker daemon
+    $dockerCmd = "docker info 2>&1 | head -1 && echo DOCKER_OK=1 || echo DOCKER_OK=0"
+    $dockerOutput = ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote $dockerCmd 2>&1
+    $dockerOk = $dockerOutput -match "DOCKER_OK=1"
+
+    # Check Docker Compose
+    $composeCmd = "docker compose version 2>&1 && echo COMPOSE_OK=1 || echo COMPOSE_OK=0"
+    $composeOutput = ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote $composeCmd 2>&1
+    $composeOk = $composeOutput -match "COMPOSE_OK=1"
+
     $result = @{
-        DockerOk = $output -match "DOCKER_OK=1"
-        ComposeOk = $output -match "COMPOSE_OK=1"
+        DockerOk = $dockerOk
+        ComposeOk = $composeOk
+        DockerOutput = $dockerOutput
+        ComposeOutput = $composeOutput
     }
     return $result
 }
