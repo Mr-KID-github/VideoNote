@@ -1,4 +1,4 @@
-# deploy/pi/interactive-common.ps1
+﻿# deploy/pi/interactive-common.ps1
 # Shared utility functions for interactive deployment scripts
 
 $script:ESC_RESET = "`e[0m"
@@ -7,25 +7,103 @@ $script:ESC_RED = "`e[31m"
 $script:ESC_YELLOW = "`e[33m"
 $script:ESC_CYAN = "`e[36m"
 
+# Detect system language
+$script:IsChinese = [System.Globalization.CultureInfo]::CurrentCulture.TwoLetterISOLanguageName -eq 'zh'
+
+# Localized strings
+$script:LOC = @{
+    zh = @{
+        OK = "[OK]"
+        FAIL = "[失败]"
+        WARN = "[警告]"
+        INFO = "[信息]"
+        Step = "步骤"
+        ValueCannotBeEmpty = "值不能为空，请输入值"
+        PleaseEnterYorN = "请输入 y 或 n"
+        ConfigSaved = "配置已保存到 local.env"
+        FoundExistingConfig = "发现已有配置"
+        WorkingTreeClean = "工作区干净"
+        WorkingTreeHasChanges = "工作区有未提交的更改"
+        ChangesCommitted = "已提交更改"
+        ChangesStashed = "已暂存更改"
+        SkipGitPush = "将跳过 git push"
+        ConnectedSuccessfully = "连接成功"
+        ConnectionFailed = "连接失败"
+        DockerEnvOK = "Docker 环境正常"
+        DockerDaemonNotRunning = "Docker daemon 未运行"
+        DockerComposeNotInstalled = "Docker Compose 未安装"
+        EnvFileUploaded = "Env 文件已上传"
+        SourceArchiveUploaded = "源码包已上传"
+        DeploymentComplete = "部署完成"
+        BranchPushed = "分支已推送"
+        FailedToPush = "推送失败"
+        Cancelled = "部署已取消"
+        BackendOnly = "仅后端"
+        FullStack = "前端 + 后端"
+        YesSkipPush = "否（跳过）"
+        NoPush = "是"
+    }
+    en = @{
+        OK = "[OK]"
+        FAIL = "[FAIL]"
+        WARN = "[WARN]"
+        INFO = "[INFO]"
+        Step = "Step"
+        ValueCannotBeEmpty = "Value cannot be empty. Please enter a value."
+        PleaseEnterYorN = "Please enter y or n."
+        ConfigSaved = "Configuration saved to local.env"
+        FoundExistingConfig = "Found existing configuration"
+        WorkingTreeClean = "Working tree clean"
+        WorkingTreeHasChanges = "Working tree has uncommitted changes"
+        ChangesCommitted = "Changes committed"
+        ChangesStashed = "Changes stashed"
+        SkipGitPush = "Will skip git push"
+        ConnectedSuccessfully = "Connected successfully"
+        ConnectionFailed = "Connection failed"
+        DockerEnvOK = "Docker environment OK"
+        DockerDaemonNotRunning = "Docker daemon is not running"
+        DockerComposeNotInstalled = "Docker Compose is not installed"
+        EnvFileUploaded = "Env file uploaded"
+        SourceArchiveUploaded = "Source archive uploaded"
+        DeploymentComplete = "Deployment complete"
+        BranchPushed = "Branch pushed"
+        FailedToPush = "Failed to push"
+        Cancelled = "Deployment cancelled"
+        BackendOnly = "Backend only"
+        FullStack = "Frontend + Backend"
+        YesSkipPush = "Yes (skip)"
+        NoPush = "No"
+    }
+}
+
+function Get-Loc($key) {
+    if ($IsChinese) {
+        return $LOC.zh[$key]
+    } else {
+        return $LOC.en[$key]
+    }
+}
+
 function Write-Success($message) {
-    Write-Host "$ESC_GREEN[OK]$ESC_RESET $message"
+    Write-Host "$ESC_GREEN$(Get-Loc 'OK')$ESC_RESET $message"
 }
 
 function Write-Fail($message) {
-    $Host.UI.WriteErrorLine("$ESC_RED[FAIL]$ESC_RESET $message")
+    $Host.UI.WriteErrorLine("$ESC_RED$(Get-Loc 'FAIL')$ESC_RESET $message")
 }
 
 function Write-Warn($message) {
-    Write-Host "$ESC_YELLOW[WARN]$ESC_RESET $message"
+    Write-Host "$ESC_YELLOW$(Get-Loc 'WARN')$ESC_RESET $message"
 }
 
 function Write-Info($message) {
-    Write-Host "$ESC_CYAN[INFO]$ESC_RESET $message"
+    Write-Host "$ESC_CYAN$(Get-Loc 'INFO')$ESC_RESET $message"
 }
 
 function Write-Step($current, $total, $message) {
     Write-Host ""
-    Write-Host "$ESC_CYAN--- Step $current/$total`: $message ---$ESC_RESET"
+    $stepLabel = Get-Loc "Step"
+    Write-Host "$ESC_CYAN--- $stepLabel $current/$total`: $message ---$ESC_RESET"
 }
 
 function Test-SshConnection($piHost, $piUser, $piPort, $timeout = 5) {
@@ -36,12 +114,13 @@ function Test-SshConnection($piHost, $piUser, $piPort, $timeout = 5) {
 
 function Read-NonEmpty($prompt, $default = "") {
     while ($true) {
-        $value = Read-Host $prompt
+        $promptText = if ($IsChinese) { "请输入" } else { "Enter" }
+        $value = Read-Host "$promptText $prompt"
         if ([string]::IsNullOrWhiteSpace($value)) {
             if ($default) {
                 return $default
             }
-            Write-Warn "Value cannot be empty. Please enter a value."
+            Write-Warn (Get-Loc "ValueCannotBeEmpty")
         } else {
             return $value
         }
@@ -49,7 +128,11 @@ function Read-NonEmpty($prompt, $default = "") {
 }
 
 function Confirm-Choice($prompt, $yesDefault = $false) {
-    $suffix = if ($yesDefault) { "[Y/n]" } else { "[y/N]" }
+    if ($yesDefault) {
+        $suffix = "[Y/n]"
+    } else {
+        $suffix = "[y/N]"
+    }
     while ($true) {
         $response = Read-Host "$prompt $suffix"
         if ([string]::IsNullOrWhiteSpace($response)) {
@@ -57,7 +140,7 @@ function Confirm-Choice($prompt, $yesDefault = $false) {
         }
         if ($response -match "^[Yy]$") { return $true }
         if ($response -match "^[Nn]$") { return $false }
-        Write-Warn "Please enter y or n."
+        Write-Warn (Get-Loc "PleaseEnterYorN")
     }
 }
 
