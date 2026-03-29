@@ -14,7 +14,7 @@ export function Notes() {
   const workspaceLabel = getWorkspaceLabel(currentWorkspace, teams, isZh ? '个人空间' : 'Personal workspace')
 
   useEffect(() => {
-    void loadNotes()
+    void loadNotes(currentWorkspace)
   }, [currentWorkspace, loadNotes])
 
   return (

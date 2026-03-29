@@ -1,6 +1,6 @@
 import { create } from 'zustand'
 import { apiJson } from '../lib/api'
-import { useTeamStore } from './teamStore'
+import type { WorkspaceSelection } from './teamStore'
 
 type NoteRow = {
   id: string
@@ -45,9 +45,15 @@ interface NoteLibraryState {
   notes: NoteRecord[]
   loading: boolean
   error: string
-  loadNotes: () => Promise<void>
+  loadNotes: (workspace?: WorkspaceSelection) => Promise<void>
   loadNoteById: (id: string) => Promise<NoteRecord | null>
-  saveNote: (title: string, content: string, videoUrl?: string, taskId?: string) => Promise<NoteRecord | null>
+  saveNote: (
+    title: string,
+    content: string,
+    videoUrl?: string,
+    taskId?: string,
+    workspace?: WorkspaceSelection,
+  ) => Promise<NoteRecord | null>
   updateNote: (id: string, title: string, content: string) => Promise<NoteRecord | null>
   deleteNote: (id: string) => Promise<void>
   createShareLink: (id: string) => Promise<NoteShareRecord | null>
@@ -95,14 +101,14 @@ const mapShareRow = (row: {
 
 export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   ...initialState,
-  loadNotes: async () => {
+  loadNotes: async (workspace) => {
     set({ loading: true, error: '' })
 
     try {
-      const workspace = useTeamStore.getState().currentWorkspace
+      const currentWorkspace = workspace ?? { scope: 'personal' as const }
       const params =
-        workspace.scope === 'team'
-          ? `?scope=team&team_id=${encodeURIComponent(workspace.teamId)}`
+        currentWorkspace.scope === 'team'
+          ? `?scope=team&team_id=${encodeURIComponent(currentWorkspace.teamId)}`
           : '?scope=personal'
       const data = await apiJson<NoteRow[]>(`/api/notes${params}`)
       set({ notes: data.map(mapRow), loading: false })
@@ -135,10 +141,10 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
       return null
     }
   },
-  saveNote: async (title, content, videoUrl, taskId) => {
+  saveNote: async (title, content, videoUrl, taskId, workspace) => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
-      const workspace = useTeamStore.getState().currentWorkspace
+      const currentWorkspace = workspace ?? { scope: 'personal' as const }
       const data = await apiJson<NoteRow>('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -149,8 +155,8 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
           task_id: taskId || null,
           source_type: videoUrl ? 'video' : 'file',
           status: 'done',
-          scope: workspace.scope,
-          team_id: workspace.scope === 'team' ? workspace.teamId : null,
+          scope: currentWorkspace.scope,
+          team_id: currentWorkspace.scope === 'team' ? currentWorkspace.teamId : null,
         }),
       })
       const note = mapRow(data)

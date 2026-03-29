@@ -59,7 +59,7 @@ export function NoteGenerator() {
     void loadTeams()
   }, [loadProfiles, loadSTTProfiles, loadTeams])
 
-  const pollTaskStatus = (id: string) => {
+  const pollTaskStatus = (id: string, workspace = currentWorkspace) => {
     pollRef.current = setInterval(async () => {
       try {
         const data = await apiJson<TaskStatusResponse>(`/api/task/${id}`)
@@ -75,6 +75,7 @@ export function NoteGenerator() {
             data.result?.markdown || '',
             videoUrl,
             data.result?.task_id || id,
+            workspace,
           )
           if (note) {
             navigate(`/note/${note.id}`)
@@ -112,6 +113,7 @@ export function NoteGenerator() {
     setProgress(10)
 
     try {
+      const generationWorkspace = currentWorkspace
       if (selectedFile) {
         throw new Error(copy.generator.browserOnlyError)
       }
@@ -135,7 +137,7 @@ export function NoteGenerator() {
       setStatus('processing')
       setCurrentStep('transcribing')
       setProgress(30)
-      pollTaskStatus(data.task_id)
+      pollTaskStatus(data.task_id, generationWorkspace)
     } catch (generationError) {
       setStatus('failed')
       setError(generationError instanceof Error ? generationError.message : copy.generator.unknownError)
