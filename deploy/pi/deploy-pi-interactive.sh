@@ -6,6 +6,7 @@ set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 REPO_ROOT="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+BOOTSTRAP_SCRIPT="${SCRIPT_DIR}/bootstrap-pi.sh"
 
 # Load shared utilities
 # shellcheck source=/dev/null
@@ -21,10 +22,14 @@ if load_local_config 2>/dev/null; then
     default_host="${PI_HOST:-}"
     default_user="${PI_USER:-pi}"
     default_port="${PI_PORT:-22}"
+    remote_dir="${PI_REMOTE_DIR:-/home/${default_user}/vinote}"
+    env_file="${PI_ENV_FILE:-.env}"
 else
     default_host=""
     default_user="pi"
     default_port="22"
+    remote_dir="/home/pi/vinote"
+    env_file=".env"
 fi
 
 echo "Enter Raspberry Pi connection details:"
@@ -35,6 +40,16 @@ pi_port="${pi_port:-22}"
 
 save_local_config "$pi_host" "$pi_user" "$pi_port"
 write_success "Configuration saved to local.env"
+
+if [[ -z "${PI_REMOTE_DIR:-}" ]]; then
+    remote_dir="/home/${pi_user}/vinote"
+fi
+
+env_path="${REPO_ROOT}/${env_file}"
+if [[ ! -f "${env_path}" ]]; then
+    write_fail "Env file not found: ${env_path}"
+    exit 1
+fi
 
 # ─────────────────────────────────────────────────────────────
 # Step 2: Test SSH Connection
@@ -165,7 +180,6 @@ fi
 # ─────────────────────────────────────────────────────────────
 write_step 5 9 "Preview & Confirm"
 
-env_path="${REPO_ROOT}/.env"
 branch=$(git -C "${REPO_ROOT}" rev-parse --abbrev-ref HEAD)
 scope_text=$([[ "$deploy_scope" == "backend" ]] && echo "Backend only" || echo "Frontend + Backend")
 push_text=$([[ "$skip_push" == "true" ]] && echo "No (skipped)" || echo "Yes")
@@ -177,8 +191,8 @@ cat <<EOF
 Target:         ${pi_user}@${pi_host}:${pi_port}
 Branch:         ${branch}
 Scope:          ${scope_text}
-Remote Dir:     /home/${pi_user}/vinote
-Local Env:      .env
+Remote Dir:     ${remote_dir}
+Local Env:      ${env_file}
 Git Push:       ${push_text}
 
 EOF
@@ -208,18 +222,26 @@ Please start Docker on your Raspberry Pi:
   sudo systemctl enable docker
 
 Then restart this deployment.
-  [1] Retry checks
-  [2] Continue anyway (may fail)
-  [3] Cancel
+  [1] Run bootstrap on the Raspberry Pi (recommended)
+  [2] Retry checks
+  [3] Continue anyway (may fail)
+  [4] Cancel
 
-Select [3]:
+Select [4]:
 EOF
     read -r retry_choice
-    retry_choice="${retry_choice:-3}"
+    retry_choice="${retry_choice:-4}"
 
     if [[ "$retry_choice" == "1" ]]; then
+        "${BOOTSTRAP_SCRIPT}" "${pi_host}" "${pi_user}" "${pi_port}" "${remote_dir}"
+        get_docker_remote_status "$pi_host" "$pi_user" "$pi_port"
+        if [[ "${DOCKER_OK:-0}" != "1" ]]; then
+            write_fail "Bootstrap completed but Docker is still unavailable on the Pi"
+            exit 1
+        fi
+    elif [[ "$retry_choice" == "2" ]]; then
         exec "$0" "$@"
-    elif [[ "$retry_choice" != "2" ]]; then
+    elif [[ "$retry_choice" != "3" ]]; then
         exit 0
     fi
 fi
@@ -234,16 +256,30 @@ Please install Docker Compose:
 Or use the Docker Compose plugin:
   sudo apt-get install -y docker-compose-plugin
 
-Select [3] to cancel, or [2] to continue anyway.
+  [1] Run bootstrap on the Raspberry Pi (recommended)
+  [2] Retry checks
+  [3] Continue anyway
+  [4] Cancel
 
-Select [3]:
+Select [4]:
 EOF
     read -r retry_choice
-    retry_choice="${retry_choice:-3}"
+    retry_choice="${retry_choice:-4}"
 
-    if [[ "$retry_choice" != "2" ]]; then
+    if [[ "$retry_choice" == "1" ]]; then
+        "${BOOTSTRAP_SCRIPT}" "${pi_host}" "${pi_user}" "${pi_port}" "${remote_dir}"
+        get_docker_remote_status "$pi_host" "$pi_user" "$pi_port"
+        if [[ "${COMPOSE_OK:-0}" != "1" ]]; then
+            write_fail "Bootstrap completed but Docker Compose is still unavailable on the Pi"
+            exit 1
+        fi
+    elif [[ "$retry_choice" == "2" ]]; then
+        exec "$0" "$@"
+    elif [[ "$retry_choice" != "3" ]]; then
         exit 0
     fi
+elif [[ -n "${COMPOSE_CMD:-}" ]]; then
+    write_info "Detected Docker Compose command: ${COMPOSE_CMD}"
 fi
 
 write_success "Docker environment OK"
@@ -287,7 +323,6 @@ fi
 # ─────────────────────────────────────────────────────────────
 write_step 8 9 "Upload Files"
 
-remote_dir="/home/${pi_user}/vinote"
 remote_env="/tmp/vinote.env"
 remote_archive="/tmp/vinote-source.tar.gz"
 
@@ -320,13 +355,21 @@ write_step 9 9 "Execute Deployment"
 
 remote_script="/tmp/vinote-deploy.sh"
 
-deploy_cmd="docker compose up -d --build"
+deploy_cmd='$COMPOSE_CMD up -d --build'
 if [[ "$deploy_scope" == "backend" ]]; then
-    deploy_cmd="docker compose up -d --no-deps backend"
+    deploy_cmd='$COMPOSE_CMD up -d --no-deps backend'
 fi
 
 deploy_script=$(cat <<SCRIPT
 set -eu
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "Missing required command on Raspberry Pi: docker compose or docker-compose" >&2
+  exit 1
+fi
 mkdir -p "${remote_dir}"
 find "${remote_dir}" -mindepth 1 -maxdepth 1 \\
   ! -name data \\
@@ -342,7 +385,7 @@ export COMPOSE_PROJECT_NAME=vinote
 export DOCKER_DEFAULT_PLATFORM=linux/arm/v7
 mkdir -p data output
 ${deploy_cmd}
-docker compose ps
+\$COMPOSE_CMD ps
 SCRIPT
 )
 
@@ -376,5 +419,5 @@ Access VINote:
 
 To check status on Pi:
   ssh ${pi_user}@${pi_host}
-  cd ~/vinote && docker compose ps
+  cd ${remote_dir} && ${COMPOSE_CMD:-docker compose} ps
 EOF
