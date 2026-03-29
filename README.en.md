@@ -2,7 +2,7 @@
 
 [中文 README](./README.md)
 
-VINote is a full-stack application that turns video or audio content into structured Markdown notes.
+VINote is a full-stack workspace that turns video or audio content into structured Markdown notes.
 
 Current stack:
 
@@ -10,85 +10,18 @@ Current stack:
 - Backend: FastAPI
 - Database: PostgreSQL
 - Auth: FastAPI-issued JWT stored in an HttpOnly cookie
-- Deployment target: local Docker and Raspberry Pi LAN Docker
+- Deployment targets: local Docker and Raspberry Pi LAN Docker
 
-## Core Capabilities
+## Core capabilities
 
 - Generate structured Markdown notes from video URLs
 - Support multiple summary modes: `default`, `accurate`, `oneshot`
 - Add key moments, timestamp jumps, and screenshots
 - Save notes and continue editing in the built-in editor
 - Support public read-only share links
-- Support model profile management
+- Support LLM and STT profile management
 - Expose both a standalone docs site and FastAPI Swagger / ReDoc
 - Provide bilingual docs: Simplified Chinese by default, English under `/en/`
-
-## Architecture
-
-High-level flow:
-
-```text
-Browser
-  -> Frontend (React)
-  -> FastAPI API
-     -> Auth service
-     -> Note generation pipeline
-     -> Notes / preferences / model profiles repositories
-     -> PostgreSQL
-     -> output/ task artifacts
-```
-
-Main backend responsibilities:
-
-- `app/routers/`
-  - HTTP routes
-- `app/services/note_service.py`
-  - Note generation orchestration
-- `app/services/note_media_service.py`
-  - Inject key moments, timestamp jumps, and screenshot placeholders
-- `app/services/auth_service.py`
-  - Email/password auth, JWT issue/verify, auth cookie handling
-- `app/services/note_repository.py`
-  - Saved note CRUD
-- `app/services/preferences_repository.py`
-  - User preference persistence
-- `app/services/model_profile_repository.py`
-  - Encrypted model profile persistence
-- `app/downloaders/`, `app/transcribers/`, `app/llm/`
-  - Media acquisition, transcription, summarization
-
-Main frontend responsibilities:
-
-- `frontend/src/pages/`
-  - Route pages
-- `frontend/src/pages/Home.tsx`
-  - Dashboard-style workspace home with primary actions, system status, developer entry points, and recent notes
-- `frontend/src/stores/authStore.ts`
-  - Cookie-auth session lifecycle
-- `frontend/src/stores/noteLibraryStore.ts`
-  - Note library CRUD via backend API
-- `frontend/src/components/Notes/VideoReferencePanel.tsx`
-  - Sticky source-media panel for timestamp jumping during note preview
-- `frontend/src/components/Notes/KeyMomentsRail.tsx`
-  - Key-moment rail with screenshot cards, timestamps, and jump targets
-
-More detail is in [docs/architecture.md](./docs/architecture.md).
-
-## Repository Layout
-
-```text
-VINote/
-├─ app/
-├─ frontend/
-├─ docs/
-├─ deploy/pi/
-├─ data/
-├─ output/
-├─ Dockerfile
-├─ docker-compose.yml
-├─ main.py
-└─ mcp_server.py
-```
 
 ## Documentation
 
@@ -110,7 +43,7 @@ API reference:
 
 If the docs site and Swagger disagree, treat Swagger as the source of truth and update the docs afterward.
 
-## Local Development
+## Local development
 
 Requirements:
 
@@ -119,7 +52,7 @@ Requirements:
 - FFmpeg
 - Docker Desktop or Docker Engine if you want the container stack
 
-### 1. Backend setup
+Backend:
 
 ```bash
 pip install -r requirements.txt
@@ -127,7 +60,7 @@ cp .env.example .env
 python main.py
 ```
 
-If you want `TRANSCRIBER_TYPE=faster-whisper`, install the optional local-transcriber dependencies:
+Optional local transcriber dependencies:
 
 ```bash
 pip install -r requirements.local-transcribers.txt
@@ -139,7 +72,7 @@ Reload mode:
 uvicorn main:app --host 0.0.0.0 --port 8900 --reload
 ```
 
-### 2. Frontend setup
+Frontend:
 
 ```bash
 cd frontend
@@ -148,7 +81,7 @@ cp .env.example .env.local
 npm run dev -- --host 0.0.0.0 --port 3100
 ```
 
-### 3. Docs setup
+Docs:
 
 ```bash
 cd docs
@@ -156,165 +89,150 @@ npm install
 npm run docs:dev
 ```
 
-### 4. Convenience launcher
-
-On Windows:
+Windows convenience launcher:
 
 ```powershell
 .\start-dev.ps1
 ```
 
-It starts:
-
-- backend
-- frontend
-- docs
-
-Default local addresses:
-
-- Frontend: `http://localhost:3100`
-- Backend: `http://127.0.0.1:8900`
-- Docs: `http://localhost:3101`
-
-When the frontend runs on port `3100`, the sidebar `Document` link defaults to `3101`.
-
-## Environment Variables
-
-Important backend variables:
-
-- `APP_JWT_SECRET`
-- `DATABASE_URL`
-- `SHARE_BASE_URL`
-- `MODEL_PROFILE_ENCRYPTION_KEY`
-- `LLM_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-- `TRANSCRIBER_TYPE`
-- `SUMMARY_DEFAULT_MAX_CHARS`
-- `SUMMARY_DEFAULT_MAX_SEGMENTS`
-- `SUMMARY_CHUNK_MAX_CHARS`
-- `SUMMARY_CHUNK_MAX_SEGMENTS`
-- `SUMMARY_CHUNK_OVERLAP_SEGMENTS`
-
-Frontend runtime variables:
-
-- `VITE_API_BASE_URL`
-- `VITE_DOCS_BASE_URL`
-
-Notes:
-
-- In local Vite development, `VITE_API_BASE_URL` can stay empty and use the frontend proxy
-- Set `VITE_DOCS_BASE_URL` when the browser app should open a separately hosted docs site
-
 ## Docker
 
-Current Docker stack:
+Start the local stack:
+
+```bash
+docker compose up --build
+```
+
+This starts:
 
 - `postgres`
 - `backend`
 - `frontend`
 - `docs`
 
-Start everything:
-
-```bash
-docker compose up --build
-```
-
 Default ports:
 
 - Frontend: `http://localhost:3100`
 - Backend: `http://localhost:8900`
 - Docs: `http://localhost:3101`
-- Postgres: `postgresql://vinote:<password>@127.0.0.1:54322/vinote`
 
-## Raspberry Pi LAN Deployment
+## Raspberry Pi deployment
 
-Deployment helpers live under `deploy/pi/`.
+VINote supports two Raspberry Pi deployment paths:
 
-Recommended flow:
+- Manual deployment from a developer machine
+- Automatic deployment from GitHub Actions on a Pi self-hosted runner
 
-1. Copy `.env.example` to `.env`
-2. Optionally create `deploy/pi/local.env`
-3. Run the deployment script
+### Manual deployment
 
-PowerShell:
+Recommended order:
+
+1. Create the root `.env` from `.env.example`
+2. Copy `deploy/pi/local.env.example` to `deploy/pi/local.env`
+3. Run bootstrap once to prepare Docker, Docker Compose, and the remote app directory
+4. Run deploy
+
+Bootstrap:
+
+```powershell
+.\deploy\pi\bootstrap-pi.ps1
+```
+
+```bash
+./deploy/pi/bootstrap-pi.sh
+```
+
+Deploy:
+
+```powershell
+.\deploy\pi\deploy-pi-interactive.ps1
+```
+
+```bash
+./deploy/pi/deploy-pi-interactive.sh
+```
 
 ```powershell
 .\deploy\pi\deploy-pi.ps1
 ```
 
-Bash:
-
 ```bash
 ./deploy/pi/deploy-pi.sh
 ```
 
-After deployment:
+The manual scripts remain the fallback for emergency redeploys and debugging.
 
-- Web app: `http://<pi-lan-ip>:<FRONTEND_PORT>`
-- MCP endpoint: `http://<pi-lan-ip>:<BACKEND_PORT>/mcp`
+### Automatic deployment on `dev`
 
-More detail is in [deploy/pi/lan.env.example](./deploy/pi/lan.env.example).
+The shared test-environment path is:
 
-## Auth Model
+1. Merge a PR into `dev`
+2. GitHub Actions receives the `push`
+3. The Pi self-hosted runner checks out the merged commit locally
+4. The Pi rebuilds and restarts the stack from that checkout
 
-VINote no longer depends on Supabase for browser auth.
+Workflow details:
 
-Auth endpoints:
+- Workflow file: `.github/workflows/deploy-pi-dev.yml`
+- Trigger: `push` to `dev` and `workflow_dispatch`
+- Runner labels: `self-hosted`, `linux`, `arm`, `pi`, `vinote-test`
+- GitHub Environment: `pi-test`
+- Local deploy script used by the runner: `deploy/pi/deploy-from-checkout.sh`
 
-- `POST /api/auth/sign-up`
-- `POST /api/auth/sign-in`
-- `POST /api/auth/sign-out`
-- `GET /api/auth/session`
-- `GET /api/auth/me`
+### One-time runner setup
 
-The backend sets an HttpOnly cookie after sign-in or sign-up. Browser requests should use `credentials: 'include'`.
+On the Raspberry Pi:
 
-Protected browser APIs include:
+1. Install Docker and Docker Compose
+2. Install a GitHub Actions self-hosted runner in a separate directory such as `/home/zouyu/actions-runner`
+3. Register the runner with labels `self-hosted,linux,arm,pi,vinote-test`
+4. Install the runner as a service
+5. Add the runner user to the `docker` group
+6. Keep the deployed app under `/home/zouyu/vinote`
 
-- `/api/notes`
-- `/api/preferences`
-- `/api/model-profiles`
+Do not use the app directory as the runner work directory.
 
-## API Notes
+### GitHub Environment `pi-test`
 
-Core generation endpoints:
+Configure these values in GitHub:
 
-- `POST /api/generate`
-- `GET /api/task/{task_id}`
-- `GET /api/task/{task_id}/artifacts/{asset_path}`
-- `POST /mcp`
-- `GET /mcp`
+- Secret `PI_TEST_ENV_FILE`
+  - full contents of the root `.env` for the Pi test environment
+- Variable `PI_REMOTE_DIR`
+  - default `/home/zouyu/vinote`
+- Variable `FRONTEND_PORT`
+  - default `3100`
+- Variable `BACKEND_PORT`
+  - default `8900`
+- Variable `DOCS_PORT`
+  - default `3101`
 
-Saved-note APIs:
+The workflow writes `PI_TEST_ENV_FILE` to `.env` inside the checked-out workspace, then `deploy-from-checkout.sh` refreshes `/home/zouyu/vinote` and copies that `.env` into the deployment directory.
 
-- `GET /api/notes`
-- `GET /api/notes/{id}`
-- `POST /api/notes`
-- `PATCH /api/notes/{id}`
-- `DELETE /api/notes/{id}`
-- `GET /api/notes/{id}/share`
-- `POST /api/notes/{id}/share`
-- `DELETE /api/notes/{id}/share`
+### Automatic deployment behavior
 
-Public share APIs:
+The workflow:
 
-- `GET /share/{token}`
-- `GET /api/public/notes/{token}`
+1. checks out the triggering commit on the Pi runner
+2. writes `.env` from `PI_TEST_ENV_FILE`
+3. validates Docker, Docker Compose, `curl`, and docker-group membership
+4. runs `deploy/pi/deploy-from-checkout.sh`
+5. rebuilds and restarts the stack with `docker compose up -d --build --remove-orphans`
+6. smoke-checks backend, frontend, and docs on `127.0.0.1`
+7. prints `docker compose ps`
+8. dumps backend/frontend/docs logs on failure
 
-Preference API:
+The deployment keeps the existing `data/` and `output/` directories on the Pi.
 
-- `GET /api/preferences`
-- `PATCH /api/preferences`
+More Pi-specific notes are in [deploy/pi/README.md](./deploy/pi/README.md).
 
 ## Verification
 
 Useful checks:
 
-- Docs site build: `cd docs && npm run docs:build`
-- Swagger: `http://127.0.0.1:8900/docs`
+- Docs build: `cd docs && npm run docs:build`
 - Backend health: `GET /healthz`
+- Swagger: `http://127.0.0.1:8900/docs`
 - Frontend build:
 
 ```bash
@@ -322,12 +240,8 @@ cd frontend
 npm run build
 ```
 
-- Python import / syntax smoke:
+## Notes
 
-```bash
-python -m compileall app main.py
-```
-
-## Historical Docs
-
-Some older planning docs under `docs/plans/` still describe the earlier Supabase-based design. Treat them as historical notes, not the current runtime architecture.
+- Browser auth uses backend-issued HttpOnly cookies
+- The sidebar `Document` link can point to a standalone docs site through `VITE_DOCS_BASE_URL`
+- If documentation and code disagree, trust the code and update the docs in the same change

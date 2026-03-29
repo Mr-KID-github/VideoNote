@@ -2,7 +2,7 @@
 
 [English README](./README.en.md)
 
-VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全栈应用，适合用在视频学习、会议记录、课程整理和内容沉淀等场景。
+VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全栈工作台。
 
 当前技术栈：
 
@@ -10,120 +10,38 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 - 后端：FastAPI
 - 数据库：PostgreSQL
 - 认证：FastAPI 签发 JWT，并通过 HttpOnly Cookie 保存会话
-- 部署：本地 Docker 与 Raspberry Pi 局域网 Docker
+- 部署目标：本地 Docker 与树莓派局域网 Docker
 
 ## 核心能力
 
 - 从视频 URL 生成结构化 Markdown 笔记
 - 支持多种总结模式：`default`、`accurate`、`oneshot`
-- 生成关键时刻、时间戳跳转和截图
-- 保存笔记并继续在编辑器中修改
+- 自动补充关键时刻、时间戳跳转和截图
+- 保存笔记并在内置编辑器中继续修改
 - 支持公开只读分享链接
-- 支持模型配置管理
-- 提供独立文档站和 OpenAPI / Swagger 接口参考
-- 文档站支持中英文双语，默认中文
-
-## 架构概览
-
-高层流程：
-
-```text
-浏览器
-  -> 前端应用（React）
-  -> FastAPI API
-     -> 认证服务
-     -> 笔记生成流程
-     -> 笔记 / 偏好 / 模型配置仓储
-     -> PostgreSQL
-     -> output/ 任务产物
-```
-
-后端主要职责：
-
-- `app/routers/`
-  - 提供 HTTP 路由
-- `app/services/note_service.py`
-  - 编排笔记生成任务
-- `app/services/note_media_service.py`
-  - 从生成结果中提取关键时刻，并补充时间戳跳转与截图占位
-- `app/services/auth_service.py`
-  - 邮箱密码认证、JWT 签发与校验、Cookie 处理
-- `app/services/note_repository.py`
-  - 已保存笔记 CRUD
-- `app/services/preferences_repository.py`
-  - 用户偏好持久化
-- `app/services/model_profile_repository.py`
-  - 加密保存模型配置
-- `app/downloaders/`、`app/transcribers/`、`app/llm/`
-  - 负责媒体获取、语音转写与总结生成
-
-前端主要职责：
-
-- `frontend/src/pages/`
-  - 页面级路由
-- `frontend/src/pages/Home.tsx`
-  - 工作台首页，提供主操作、系统状态、开发者入口与最近笔记
-- `frontend/src/stores/authStore.ts`
-  - 基于 Cookie 的会话生命周期管理
-- `frontend/src/stores/noteLibraryStore.ts`
-  - 笔记库 CRUD
-- `frontend/src/components/Notes/VideoReferencePanel.tsx`
-  - 预览侧媒体面板，支持时间戳跳转
-- `frontend/src/components/Notes/KeyMomentsRail.tsx`
-  - 关键时刻、截图和时间戳展示
-- `frontend/src/stores/languageStore.ts`
-  - 语言偏好同步
-- `frontend/src/stores/modelProfileStore.ts`
-  - 模型配置管理
-
-更多架构细节见 [docs/architecture.md](./docs/architecture.md)。
-
-## 仓库结构
-
-```text
-VINote/
-├─ app/
-│  ├─ downloaders/
-│  ├─ llm/
-│  ├─ models/
-│  ├─ routers/
-│  ├─ services/
-│  ├─ transcribers/
-│  ├─ config.py
-│  ├─ db.py
-│  └─ db_models.py
-├─ frontend/
-│  ├─ src/
-│  └─ docker/
-├─ docs/
-├─ deploy/pi/
-├─ data/
-├─ output/
-├─ Dockerfile
-├─ docker-compose.yml
-├─ main.py
-└─ mcp_server.py
-```
+- 支持 LLM / STT 配置管理
+- 同时提供独立文档站与 FastAPI Swagger / ReDoc
+- 文档支持中英文双语，默认中文，英文入口为 `/en/`
 
 ## 文档说明
 
-项目包含两类文档：
+项目包含两层文档：
 
 - 使用文档站：位于 `docs/`，由 VitePress 构建
-- 接口参考：由 FastAPI 自动生成 Swagger / ReDoc
+- API 参考：由 FastAPI 自动生成 Swagger / ReDoc
 
-文档站说明：
+文档站：
 
 - 中文默认入口：`/`
 - 英文入口：`/en/`
 - 本地默认地址：`http://localhost:3101`
 
-接口参考说明：
+API 参考：
 
 - Swagger：`http://127.0.0.1:8900/docs`
 - ReDoc：`http://127.0.0.1:8900/redoc`
 
-如果文档站中的描述和 Swagger 不一致，以 Swagger 为准，然后再修正文档。
+如果文档站和 Swagger 描述不一致，以 Swagger 为准，然后再修正文档。
 
 ## 本地开发
 
@@ -132,9 +50,9 @@ VINote/
 - Python 3.10+
 - Node.js 18+
 - FFmpeg
-- Docker Desktop 或 Docker Engine（如果要使用容器）
+- Docker Desktop 或 Docker Engine
 
-### 1. 启动后端
+后端：
 
 ```bash
 pip install -r requirements.txt
@@ -142,19 +60,19 @@ cp .env.example .env
 python main.py
 ```
 
-如果需要使用 `TRANSCRIBER_TYPE=faster-whisper`，还要安装可选依赖：
+如果需要本地 `faster-whisper`：
 
 ```bash
 pip install -r requirements.local-transcribers.txt
 ```
 
-支持热重载的启动方式：
+热重载模式：
 
 ```bash
 uvicorn main:app --host 0.0.0.0 --port 8900 --reload
 ```
 
-### 2. 启动前端
+前端：
 
 ```bash
 cd frontend
@@ -163,7 +81,7 @@ cp .env.example .env.local
 npm run dev -- --host 0.0.0.0 --port 3100
 ```
 
-### 3. 启动文档站
+文档站：
 
 ```bash
 cd docs
@@ -171,232 +89,150 @@ npm install
 npm run docs:dev
 ```
 
-### 4. 一键启动
-
-Windows 下可以直接运行：
+Windows 一键启动：
 
 ```powershell
 .\start-dev.ps1
 ```
 
-它会同时启动：
-
-- 后端
-- 前端
-- 文档站
-
-默认本地地址：
-
-- 前端：`http://localhost:3100`
-- 后端：`http://127.0.0.1:8900`
-- 文档站：`http://localhost:3101`
-
-当本地前端运行在 `3100` 端口时，侧栏左下角 `Document` 会默认跳到 `3101` 文档站。
-
-## 环境变量
-
-后端重要变量：
-
-- `APP_JWT_SECRET`
-- `DATABASE_URL`
-- `SHARE_BASE_URL`
-- `MODEL_PROFILE_ENCRYPTION_KEY`
-- `LLM_API_KEY`
-- `LLM_BASE_URL`
-- `LLM_MODEL`
-- `TRANSCRIBER_TYPE`
-- `GROQ_API_KEY`
-- `WHISPER_MODEL_SIZE`
-- `WHISPER_DEVICE`
-- `FASTER_WHISPER_COMPUTE_TYPE`
-- `SENSEVOICE_BASE_URL`
-- `SENSEVOICE_LANGUAGE`
-- `SENSEVOICE_MODEL_SIZE`
-- `SENSEVOICE_USE_GPU`
-- `SUMMARY_DEFAULT_MAX_CHARS`
-- `SUMMARY_DEFAULT_MAX_SEGMENTS`
-- `SUMMARY_CHUNK_MAX_CHARS`
-- `SUMMARY_CHUNK_MAX_SEGMENTS`
-- `SUMMARY_CHUNK_OVERLAP_SEGMENTS`
-
-前端运行时变量：
-
-- `VITE_API_BASE_URL`
-- `VITE_DOCS_BASE_URL`
-
-说明：
-
-- 本地 Vite 开发时，`VITE_API_BASE_URL` 可以留空，直接用代理到后端
-- 如果前端需要指向单独部署的文档站，配置 `VITE_DOCS_BASE_URL`
-
 ## Docker
 
-当前 Docker 编排包含以下服务：
+启动本地容器栈：
+
+```bash
+docker compose up --build
+```
+
+会启动：
 
 - `postgres`
 - `backend`
 - `frontend`
 - `docs`
 
-启动方式：
-
-```bash
-docker compose up --build
-```
-
 默认端口：
 
 - 前端：`http://localhost:3100`
 - 后端：`http://localhost:8900`
 - 文档站：`http://localhost:3101`
-- Postgres：`postgresql://vinote:<password>@127.0.0.1:54322/vinote`
 
-说明：
+## 树莓派部署
 
-- 后端容器会在启动时自动初始化数据库 Schema
-- 前端运行时配置会在容器启动时注入，不需要每个环境单独重新构建前端
-- 后端通过 `/mcp` 暴露 HTTP MCP 接口
+VINote 现在支持两条树莓派部署路径：
 
-## Raspberry Pi 局域网部署
+- 开发机手动部署
+- GitHub Actions 驱动的树莓派 self-hosted runner 自动部署
 
-项目提供了 `deploy/pi/` 下的部署辅助脚本。
+### 手动部署
 
-推荐流程：
+推荐顺序：
 
-1. 从 `.env.example` 复制生成根目录 `.env`
-2. 从 `deploy/pi/local.env.example` 创建 `deploy/pi/local.env`
-3. 先运行初始化脚本，自动检查并安装 Docker / Docker Compose、创建远程目录
-4. 再执行部署脚本
+1. 从 `.env.example` 生成根目录 `.env`
+2. 从 `deploy/pi/local.env.example` 生成 `deploy/pi/local.env`
+3. 先运行 bootstrap，准备 Docker、Docker Compose 和远程应用目录
+4. 再运行 deploy
 
-初始化 PowerShell：
+Bootstrap：
 
 ```powershell
 .\deploy\pi\bootstrap-pi.ps1
 ```
 
-初始化 Bash：
-
 ```bash
 ./deploy/pi/bootstrap-pi.sh
 ```
 
-交互式部署 PowerShell：
+Deploy：
 
 ```powershell
 .\deploy\pi\deploy-pi-interactive.ps1
 ```
 
-交互式部署 Bash：
-
 ```bash
 ./deploy/pi/deploy-pi-interactive.sh
 ```
-
-非交互部署 PowerShell：
 
 ```powershell
 .\deploy\pi\deploy-pi.ps1
 ```
 
-非交互部署 Bash：
-
 ```bash
 ./deploy/pi/deploy-pi.sh
 ```
 
-说明：
+手动脚本继续保留，作为紧急重部署和调试时的 fallback。
 
-- 初始化脚本会优先使用 `docker compose`，并在老环境下自动兼容 `docker-compose`
-- 交互式部署脚本在检测到 Docker 或 Docker Compose 缺失时，可以直接调用初始化脚本
-- `deploy/pi/local.env` 中的 `PI_REMOTE_DIR` 和 `PI_ENV_FILE` 不会再被交互流程覆盖
-- 更详细的树莓派部署说明见 [deploy/pi/README.md](./deploy/pi/README.md)
+### `dev` 自动部署
 
-部署后可访问：
+共享测试环境的推荐流程是：
 
-- Web 应用：`http://<pi-lan-ip>:<FRONTEND_PORT>`
-- MCP 接口：`http://<pi-lan-ip>:<BACKEND_PORT>/mcp`
+1. PR 合并到 `dev`
+2. GitHub Actions 收到 `push`
+3. 树莓派 self-hosted runner 在本机 checkout 合并后的 commit
+4. 树莓派直接基于当前 checkout 重建并启动服务
 
-更多说明见 [deploy/pi/lan.env.example](./deploy/pi/lan.env.example)。
+关键配置：
 
-## 认证模型
+- Workflow：`.github/workflows/deploy-pi-dev.yml`
+- 触发条件：`push` 到 `dev`，以及 `workflow_dispatch`
+- Runner 标签：`self-hosted`、`linux`、`arm`、`pi`、`vinote-test`
+- GitHub Environment：`pi-test`
+- Runner 使用的本机部署脚本：`deploy/pi/deploy-from-checkout.sh`
 
-VINote 当前不再依赖 Supabase 进行浏览器认证。
+### 树莓派一次性准备
 
-认证接口：
+在树莓派上完成以下初始化：
 
-- `POST /api/auth/sign-up`
-- `POST /api/auth/sign-in`
-- `POST /api/auth/sign-out`
-- `GET /api/auth/session`
-- `GET /api/auth/me`
+1. 安装 Docker 和 Docker Compose
+2. 在独立目录中安装 GitHub Actions runner，例如 `/home/zouyu/actions-runner`
+3. 注册 runner，并打上 `self-hosted,linux,arm,pi,vinote-test` 标签
+4. 将 runner 安装为系统服务
+5. 将 runner 用户加入 `docker` 组
+6. 保持应用部署目录为 `/home/zouyu/vinote`
 
-说明：
+不要把应用目录直接拿来当 runner 工作目录。
 
-- 登录或注册成功后，后端会设置 HttpOnly Cookie
-- 浏览器请求需要带上 `credentials: 'include'`
-- `GET /api/auth/session` 可用于无报错的会话探测
+### GitHub Environment `pi-test`
 
-受保护的浏览器数据接口包括：
+在 GitHub 中配置：
 
-- `/api/notes`
-- `/api/teams`
-- `/api/preferences`
-- `/api/model-profiles`
+- Secret `PI_TEST_ENV_FILE`
+  - 内容为树莓派测试环境使用的完整根目录 `.env`
+- Variable `PI_REMOTE_DIR`
+  - 默认值：`/home/zouyu/vinote`
+- Variable `FRONTEND_PORT`
+  - 默认值：`3100`
+- Variable `BACKEND_PORT`
+  - 默认值：`8900`
+- Variable `DOCS_PORT`
+  - 默认值：`3101`
 
-## API 说明
+workflow 会先把 `PI_TEST_ENV_FILE` 写入 checkout 目录中的 `.env`，然后 `deploy-from-checkout.sh` 会刷新 `/home/zouyu/vinote`，并把这份 `.env` 同步到部署目录。
 
-核心生成接口：
+### 自动部署行为
 
-- `POST /api/generate`
-- `GET /api/task/{task_id}`
-- `GET /api/task/{task_id}/artifacts/{asset_path}`
-- `POST /mcp`
-- `GET /mcp`
+workflow 会：
 
-生成请求支持可选的 `summary_mode`：
+1. 在树莓派 runner 上 checkout 当前触发 commit
+2. 从 `PI_TEST_ENV_FILE` 写入 `.env`
+3. 检查 Docker、Docker Compose、`curl` 以及 docker 组权限
+4. 调用 `deploy/pi/deploy-from-checkout.sh`
+5. 以 `docker compose up -d --build --remove-orphans` 重建并拉起服务
+6. 对 `127.0.0.1` 上的 backend、frontend、docs 做 smoke check
+7. 输出 `docker compose ps`
+8. 失败时输出 backend / frontend / docs 日志
 
-- `default`
-- `accurate`
-- `oneshot`
+部署时会保留树莓派上的 `data/` 与 `output/` 目录。
 
-已保存笔记相关接口：
-
-- `GET /api/notes?scope=personal`
-- `GET /api/notes?scope=team&team_id={team_id}`
-- `GET /api/notes/{id}`
-- `POST /api/notes`
-- `PATCH /api/notes/{id}`
-- `DELETE /api/notes/{id}`
-- `GET /api/notes/{id}/share`
-- `POST /api/notes/{id}/share`
-- `DELETE /api/notes/{id}/share`
-
-公开分享接口：
-
-- `GET /share/{token}`
-- `GET /api/public/notes/{token}`
-
-偏好设置接口：
-
-- `GET /api/preferences`
-- `PATCH /api/preferences`
-
-## 媒体预览行为
-
-- 只在选中的关键时刻附加可点击时间戳，而不是给每个标题都加
-- 关键时刻可同时显示截图缩略图
-- 点击标题时间戳、关键时刻卡片、内联时间戳或截图时，会尝试驱动预览侧媒体跳转
-- YouTube、Bilibili 等可嵌入源会以 iframe 方式展示
-- 音频源或无法嵌入的视频源会回退到 `/api/notes/{note_id}/media`
-- 笔记编辑器支持左右分栏，并提供可拖拽分隔条
+更多树莓派部署说明见 [deploy/pi/README.md](./deploy/pi/README.md)。
 
 ## 验证建议
 
 常用检查项：
 
 - 文档站构建：`cd docs && npm run docs:build`
-- Swagger：打开 `http://127.0.0.1:8900/docs`
 - 后端健康检查：`GET /healthz`
+- Swagger：`http://127.0.0.1:8900/docs`
 - 前端构建：
 
 ```bash
@@ -404,12 +240,8 @@ cd frontend
 npm run build
 ```
 
-- Python 导入 / 语法检查：
+## 说明
 
-```bash
-python -m compileall app main.py
-```
-
-## 历史文档说明
-
-`docs/plans/` 下的一些旧规划文档仍然保留了早期 Supabase 方案，它们属于历史设计材料，不代表当前运行架构。
+- 浏览器认证使用后端签发的 HttpOnly Cookie
+- 侧边栏 `Document` 可通过 `VITE_DOCS_BASE_URL` 指向独立文档站
+- 如果文档和代码不一致，以代码为准，并在同一改动中修正文档

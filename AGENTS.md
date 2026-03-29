@@ -69,6 +69,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Raspberry Pi bootstrap (Bash): `./deploy/pi/bootstrap-pi.sh`
 - Raspberry Pi interactive deploy (PowerShell): `.\deploy\pi\deploy-pi-interactive.ps1`
 - Raspberry Pi interactive deploy (Bash): `./deploy/pi/deploy-pi-interactive.sh`
+- Raspberry Pi self-hosted runner deploy: `./deploy/pi/deploy-from-checkout.sh`
 - Windows convenience launcher: `.\start-dev.ps1` or `.\start-dev.bat`
 
 Default local ports:
@@ -104,6 +105,13 @@ Raspberry Pi deployment defaults live in `deploy/pi/local.env`:
 - `PI_REMOTE_DIR`: remote app directory used by bootstrap and deploy scripts
 - `PI_ENV_FILE`: root-level env file that should be uploaded to the Pi during deploy
 
+GitHub Actions `dev` auto-deploy defaults:
+- workflow: `.github/workflows/deploy-pi-dev.yml`
+- environment: `pi-test`
+- secret: `PI_TEST_ENV_FILE` contains the full root `.env` for the Pi test environment
+- variables: `PI_REMOTE_DIR`, `FRONTEND_PORT`, `BACKEND_PORT`, `DOCS_PORT`
+- runner labels: `self-hosted`, `linux`, `arm`, `pi`, `vinote-test`
+
 ## Testing and Verification
 The repository already contains backend tests under `tests/`.
 
@@ -111,6 +119,7 @@ Recommended checks after code changes:
 - Backend unit tests: `pytest tests`
 - Frontend type/build check: `cd frontend && npm run build`
 - Docs build check: `cd docs && npm run docs:build`
+- Raspberry Pi CI deploy script syntax check: `bash -n deploy/pi/deploy-from-checkout.sh`
 - API smoke check: open `http://127.0.0.1:8900/docs`
 - MCP smoke check: `POST http://127.0.0.1:8900/mcp` with JSON-RPC `initialize` or `tools/list`
 - Pipeline smoke check: run one sample generation and inspect the created folder under `output/`
