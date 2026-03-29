@@ -221,6 +221,56 @@ workflow 会：
 - `data/`
 - `output/`
 
+### 手动触发部署到底怎么操作
+
+如果你不希望 `dev` 每次合并后都立即影响局域网共享环境，更稳的方式是只保留 `workflow_dispatch`，然后在你确认本地自测和 CI 都通过之后，再手动点一次部署。
+
+这里的“手动触发”不是让你再去本地执行命令，而是在 GitHub 页面里操作：
+
+1. 打开仓库
+2. 进入 `Actions`
+3. 选择 `Deploy Pi Test Environment`
+4. 点击右上角 `Run workflow`
+5. 选择要部署的分支，一般是 `dev`
+6. 确认运行
+
+然后 GitHub 会把任务派发给树莓派上的 self-hosted runner，由树莓派本机完成部署。正常情况下，你不需要再 SSH 到树莓派手动执行部署命令。
+
+如果以后你给 Environment 增加 reviewer gate，那么部署会在开始前等待审批；如果没有配置审批，手动触发就是一个 GitHub 页面上的按钮。
+
+### 数据保留与注意事项
+
+按当前部署设计，正常部署后，原有团队成员的数据、笔记数据和已生成产物应该都会保留。
+
+原因是：
+
+- `docker-compose.yml` 里的 Postgres 使用命名 volume
+- `deploy-from-checkout.sh` 会刷新代码目录，但会保留 `data/` 和 `output/`
+- workflow 使用的是 `docker compose up -d --build --remove-orphans`
+- 当前流程不会执行 `docker compose down -v`
+
+正常情况下会保留的内容：
+
+- 数据库中的用户、团队、笔记、设置
+- `/home/zouyu/vinote/data` 里的已有文件
+- `/home/zouyu/vinote/output` 里的已有文件
+
+以下情况仍然可能导致数据丢失或部署到错误位置：
+
+- 手动执行了 `docker compose down -v`
+- 手动删除了 Docker volume
+- 手动删除了 `/home/zouyu/vinote/data` 或 `/home/zouyu/vinote/output`
+- 错误修改了 `PI_REMOTE_DIR`
+- 改动了 `COMPOSE_PROJECT_NAME`，导致 Compose 指向了另一套项目
+- 引入了破坏性数据库迁移
+
+对局域网共享环境的推荐做法：
+
+- 先在本机自测
+- 等 PR CI 跑完
+- 确认无误后再手动触发树莓派部署
+- 把 `docker compose down -v` 视为破坏性恢复命令，不要作为日常部署命令使用
+
 ## 局域网说明
 
 - 当 `SHARE_BASE_URL` 为空时，后端会尽量自动推断局域网分享地址

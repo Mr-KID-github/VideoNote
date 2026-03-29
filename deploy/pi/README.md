@@ -207,6 +207,23 @@ If the workflow fails before deploy starts, check:
 6. Smoke-checks backend, frontend, and docs on `127.0.0.1`
 7. Dumps service logs if the deployment fails
 
+### Manual trigger flow
+
+If you do not want every merge to `dev` to deploy immediately, the safest operating mode is to keep only `workflow_dispatch` enabled and trigger the workflow manually after you finish local checks and CI checks.
+
+Manual trigger in GitHub means:
+
+1. Open the repository on GitHub
+2. Go to `Actions`
+3. Open the workflow `Deploy Pi Test Environment`
+4. Click `Run workflow`
+5. Choose the target branch, usually `dev`
+6. Confirm the run
+
+You do not need to SSH into the Pi or run deployment commands from your laptop for that path. GitHub schedules the job, the Pi runner picks it up, and the Pi deploys locally.
+
+If you later enable Environment reviewers, GitHub will wait for approval before the deploy job starts. Without reviewers, manual trigger is simply a button in the Actions UI.
+
 ### What `deploy-from-checkout.sh` preserves
 
 The script refreshes the target app directory while keeping:
@@ -215,6 +232,39 @@ The script refreshes the target app directory while keeping:
 - `output/`
 
 It also rewrites `.env` from the GitHub Environment secret so the deployed config stays in sync with repository automation.
+
+### Data retention and safety notes
+
+Under the current deployment design, a normal deploy should preserve existing team data, notes, and generated artifacts.
+
+Why data is retained:
+
+- Postgres uses a named Docker volume in `docker-compose.yml`
+- the deploy script refreshes the app checkout but keeps `data/` and `output/`
+- the workflow runs `docker compose up -d --build --remove-orphans`
+- the workflow does not run `docker compose down -v`
+
+What is normally preserved after deploy:
+
+- database-backed users, teams, notes, and settings
+- existing files under `/home/zouyu/vinote/data`
+- existing files under `/home/zouyu/vinote/output`
+
+What can still cause data loss or an unsafe deploy:
+
+- manually running `docker compose down -v`
+- manually deleting Docker volumes
+- manually deleting `/home/zouyu/vinote/data` or `/home/zouyu/vinote/output`
+- changing `PI_REMOTE_DIR` to a different app directory by mistake
+- changing `COMPOSE_PROJECT_NAME` in a way that points Compose at a different project
+- introducing destructive database migrations
+
+Recommended practice for a shared LAN environment:
+
+- do local validation first
+- let PR CI complete
+- trigger Pi deployment manually when you decide the shared environment can be updated
+- treat `docker compose down -v` as a destructive recovery command, not a normal deployment command
 
 ## Troubleshooting
 

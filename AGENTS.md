@@ -140,6 +140,12 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 - project structure or module ownership
 - major user-facing flows in the frontend
 
+## Versioning
+- Use semantic-style versioning for user-visible releases.
+- Small fixes or minor tweaks: increment the patch version, for example `0.1.0 -> 0.1.1`.
+- Larger features or meaningful product-facing changes: increment the minor version, for example `0.1.0 -> 0.2.0`.
+- Prefer updating versions once per merge-ready PR or release unit, not on every intermediate commit.
+
 ## Notes for Agents
 - The current frontend does not yet upload local files from the browser, even though backend file-based generation endpoints exist.
 - The note generator UI exposes both LLM profile selection and STT profile selection; `default` summary mode still auto-switches to hierarchical summarization for longer transcripts.
