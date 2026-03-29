@@ -4,6 +4,7 @@
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+$bootstrapScriptPath = Join-Path $PSScriptRoot "bootstrap-pi.ps1"
 
 # Load shared utilities
 . (Join-Path $PSScriptRoot "interactive-common.ps1")
@@ -18,13 +19,17 @@ $config = Load-LocalConfig
 
 if ($config) {
     Write-Info (Get-Loc "FoundExistingConfig")
-    $defaultHost = $config["PI_HOST"]
-    $defaultUser = $config["PI_USER"]
+    $defaultHost = if ($config["PI_HOST"]) { $config["PI_HOST"] } else { "" }
+    $defaultUser = if ($config["PI_USER"]) { $config["PI_USER"] } else { "pi" }
     $defaultPort = if ($config["PI_PORT"]) { $config["PI_PORT"] } else { "22" }
+    $remoteDir = if ($config["PI_REMOTE_DIR"]) { $config["PI_REMOTE_DIR"] } else { "/home/$defaultUser/vinote" }
+    $envFile = if ($config["PI_ENV_FILE"]) { $config["PI_ENV_FILE"] } else { ".env" }
 } else {
     $defaultHost = ""
     $defaultUser = "pi"
     $defaultPort = "22"
+    $remoteDir = "/home/pi/vinote"
+    $envFile = ".env"
 }
 
 $promptHost = if ($IsChinese) { "IP 地址或主机名" } else { "IP Address or Hostname" }
@@ -40,6 +45,15 @@ if ([string]::IsNullOrWhiteSpace($piPort)) { $piPort = "22" }
 
 Save-LocalConfig $piHost $piUser $piPort
 Write-Success (Get-Loc "ConfigSaved")
+
+if (-not $config) {
+    $remoteDir = "/home/$piUser/vinote"
+}
+
+$envPath = Join-Path $repoRoot $envFile
+if (-not (Test-Path $envPath)) {
+    throw "Env file not found: $envPath"
+}
 
 # ================================================================
 # Step 2: Test SSH Connection
@@ -232,7 +246,6 @@ if ($gitStatus) {
 $step5Title = if ($IsChinese) { "预览并确认" } else { "Preview & Confirm" }
 Write-Step 5 9 $step5Title
 
-$envPath = Join-Path $repoRoot ".env"
 $branch = git -C $repoRoot rev-parse --abbrev-ref HEAD
 
 $scopeText = if ($deployScope -eq "backend") { Get-Loc "BackendOnly" } else { Get-Loc "FullStack" }
@@ -253,8 +266,8 @@ Write-Host @"
 ${targetLabel}:         $piUser@$piHost`:$piPort
 ${branchLabel}:         $branch
 ${scopeLabel}:          $scopeText
-${remoteDirLabel}:     /home/$piUser/vinote
-${localEnvLabel}:      .env
+${remoteDirLabel}:     $remoteDir
+${localEnvLabel}:      $envFile
 ${gitPushLabel}:       $pushText
 
 "@ -ForegroundColor White
@@ -284,10 +297,11 @@ if (-not $dockerStatus.DockerOk) {
 
     # Debug: show actual output
     $debugInfo = if ($IsChinese) { "调试信息" } else { "Debug info" }
-    Write-Host "  $debugInfo: $($dockerStatus.DockerOutput)" -ForegroundColor Gray
+    Write-Host "  ${debugInfo}: $($dockerStatus.DockerOutput)" -ForegroundColor Gray
 
     $startDocker = if ($IsChinese) { "请在树莓派上启动 Docker" } else { "Please start Docker on your Raspberry Pi" }
     $retryDeploy = if ($IsChinese) { "然后重新运行此部署" } else { "Then restart this deployment" }
+    $bootstrap = if ($IsChinese) { "自动初始化树莓派环境（推荐）" } else { "Run bootstrap on the Raspberry Pi (recommended)" }
     $retry = if ($IsChinese) { "重试检查" } else { "Retry checks" }
     $continue = if ($IsChinese) { "继续（可能会失败）" } else { "Continue anyway (may fail)" }
     $cancel = if ($IsChinese) { "取消" } else { "Cancel" }
@@ -300,11 +314,12 @@ $startDocker：
   sudo systemctl enable docker
 
 $retryDeploy
-  [1] $retry
-  [2] $continue
-  [3] $cancel
+  [1] $bootstrap
+  [2] $retry
+  [3] $continue
+  [4] $cancel
 
-选择 [3]:
+选择 [4]:
 "@ -ForegroundColor Yellow
     } else {
         Write-Host @"
@@ -314,19 +329,26 @@ ${startDocker}:
   sudo systemctl enable docker
 
 ${retryDeploy}
-  [1] $retry
-  [2] $continue
-  [3] $cancel
+  [1] $bootstrap
+  [2] $retry
+  [3] $continue
+  [4] $cancel
 
-Select [3]:
+Select [4]:
 "@ -ForegroundColor Yellow
     }
 
     $retryChoice = Read-Host
-    if ([string]::IsNullOrWhiteSpace($retryChoice) -or $retryChoice -eq "3") {
+    if ([string]::IsNullOrWhiteSpace($retryChoice) -or $retryChoice -eq "4") {
         exit 0
     }
     if ($retryChoice -eq "1") {
+        & $bootstrapScriptPath -PiHost $piHost -User $piUser -Port ([int]$piPort) -RemoteDir $remoteDir
+        $dockerStatus = Get-DockerRemoteStatus $piHost $piUser $piPort
+        if (-not $dockerStatus.DockerOk) {
+            throw "Bootstrap completed but Docker is still unavailable on the Raspberry Pi."
+        }
+    } elseif ($retryChoice -eq "2") {
         & $MyInvocation.MyCommand.Path
         exit $LASTEXITCODE
     }
@@ -337,11 +359,13 @@ if (-not $dockerStatus.ComposeOk) {
 
     # Debug: show actual output
     $debugInfo = if ($IsChinese) { "调试信息" } else { "Debug info" }
-    Write-Host "  $debugInfo: $($dockerStatus.ComposeOutput)" -ForegroundColor Gray
+    Write-Host "  ${debugInfo}: $($dockerStatus.ComposeOutput)" -ForegroundColor Gray
 
     $installCompose = if ($IsChinese) { "请安装 Docker Compose" } else { "Please install Docker Compose" }
+    $bootstrap = if ($IsChinese) { "自动初始化树莓派环境（推荐）" } else { "Run bootstrap on the Raspberry Pi (recommended)" }
+    $retry = if ($IsChinese) { "重试检查" } else { "Retry checks" }
     $cancelOption = if ($IsChinese) { "取消" } else { "Cancel" }
-    $continueOption = if ($IsChinese) { "继续" } else { "continue" }
+    $continueOption = if ($IsChinese) { "继续" } else { "Continue" }
 
     if ($IsChinese) {
         Write-Host @"
@@ -352,9 +376,12 @@ $installCompose：
 或使用 Docker Compose 插件：
   sudo apt-get install -y docker-compose-plugin
 
-选择 [3] $cancelOption，或 [2] $continueOption。
+  [1] $bootstrap
+  [2] $retry
+  [3] $continueOption
+  [4] $cancelOption
 
-选择 [3]:
+选择 [4]:
 "@ -ForegroundColor Yellow
     } else {
         Write-Host @"
@@ -365,16 +392,32 @@ ${installCompose}:
 Or use the Docker Compose plugin:
   sudo apt-get install -y docker-compose-plugin
 
-Select [3] to $cancelOption, or [2] to $continueOption.
+  [1] $bootstrap
+  [2] $retry
+  [3] $continueOption
+  [4] $cancelOption
 
-Select [3]:
+Select [4]:
 "@ -ForegroundColor Yellow
     }
 
     $retryChoice = Read-Host
-    if ([string]::IsNullOrWhiteSpace($retryChoice) -or $retryChoice -eq "3") {
+    if ([string]::IsNullOrWhiteSpace($retryChoice) -or $retryChoice -eq "4") {
         exit 0
     }
+    if ($retryChoice -eq "1") {
+        & $bootstrapScriptPath -PiHost $piHost -User $piUser -Port ([int]$piPort) -RemoteDir $remoteDir
+        $dockerStatus = Get-DockerRemoteStatus $piHost $piUser $piPort
+        if (-not $dockerStatus.ComposeOk) {
+            throw "Bootstrap completed but Docker Compose is still unavailable on the Raspberry Pi."
+        }
+    } elseif ($retryChoice -eq "2") {
+        & $MyInvocation.MyCommand.Path
+        exit $LASTEXITCODE
+    }
+} elseif ($dockerStatus.ComposeCommand) {
+    $detectedLabel = if ($IsChinese) { "检测到 Docker Compose 命令" } else { "Detected Docker Compose command" }
+    Write-Info "${detectedLabel}: $($dockerStatus.ComposeCommand)"
 }
 
 Write-Success (Get-Loc "DockerEnvOK")
@@ -425,7 +468,6 @@ if ($skipPush) {
 $step8Title = if ($IsChinese) { "上传文件" } else { "Upload Files" }
 Write-Step 8 9 $step8Title
 
-$remoteDir = "/home/$piUser/vinote"
 $remoteEnv = "/tmp/vinote.env"
 $remoteArchive = "/tmp/vinote-source.tar.gz"
 
@@ -463,6 +505,14 @@ $buildArg = if ($deployScope -eq "backend") { "--no-deps backend" } else { "" }
 
 $deployScript = @"
 set -eu
+if docker compose version >/dev/null 2>&1; then
+  COMPOSE_CMD="docker compose"
+elif command -v docker-compose >/dev/null 2>&1; then
+  COMPOSE_CMD="docker-compose"
+else
+  echo "Missing required command on Raspberry Pi: docker compose or docker-compose" >&2
+  exit 1
+fi
 mkdir -p `"$remoteDir`"
 find `"$remoteDir`" -mindepth 1 -maxdepth 1 `
   ! -name data `
@@ -477,13 +527,13 @@ cd `"$remoteDir`"
 export COMPOSE_PROJECT_NAME=vinote
 export DOCKER_DEFAULT_PLATFORM=linux/arm/v7
 mkdir -p data output
-docker compose up -d --build $buildArg
-docker compose ps
+`$COMPOSE_CMD up -d --build $buildArg
+`$COMPOSE_CMD ps
 "@
 
 $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "vinote-deploy-$PID.sh"
 $deployScriptLf = $deployScript -replace "`r`n", "`n"
-[System.IO.File]::WriteText($tempScript, $deployScriptLf, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($tempScript, $deployScriptLf, [System.Text.UTF8Encoding]::new($false))
 
 $scriptPath = "/tmp/vinote-deploy.sh"
 
@@ -523,7 +573,7 @@ $accessMsg：
 
 $checkStatus：
   ssh $piUser@$piHost
-  cd ~/vinote && docker compose ps
+  cd $remoteDir && $(if ($dockerStatus.ComposeCommand) { $dockerStatus.ComposeCommand } else { "docker compose" }) ps
 "@
     } else {
         Write-Host @"
@@ -535,7 +585,7 @@ ${accessMsg}:
 
 ${checkStatus}:
   ssh $piUser@$piHost
-  cd ~/vinote && docker compose ps
+  cd $remoteDir && $(if ($dockerStatus.ComposeCommand) { $dockerStatus.ComposeCommand } else { "docker compose" }) ps
 "@
     }
 }

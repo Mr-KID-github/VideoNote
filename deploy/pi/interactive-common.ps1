@@ -9,12 +9,14 @@ if ($Host.UI.RawUI) {
     } catch {}
 }
 
-# Use VT escape sequences (supported in PowerShell 7+ and Windows 10 1607+)
-$script:ESC_RESET = "`e[0m"
-$script:ESC_GREEN = "`e[32m"
-$script:ESC_RED = "`e[31m"
-$script:ESC_YELLOW = "`e[33m"
-$script:ESC_CYAN = "`e[36m"
+# Use a literal ESC character so ANSI colors work in both Windows PowerShell 5
+# and PowerShell 7+.
+$script:ESC = [char]27
+$script:ESC_RESET = "${script:ESC}[0m"
+$script:ESC_GREEN = "${script:ESC}[32m"
+$script:ESC_RED = "${script:ESC}[31m"
+$script:ESC_YELLOW = "${script:ESC}[33m"
+$script:ESC_CYAN = "${script:ESC}[36m"
 
 # Detect system language
 $script:IsChinese = [System.Globalization.CultureInfo]::CurrentCulture.TwoLetterISOLanguageName -eq 'zh'
@@ -155,12 +157,42 @@ function Confirm-Choice($prompt, $yesDefault = $false) {
 
 function Save-LocalConfig($piHost, $piUser, $piPort) {
     $configPath = Join-Path $PSScriptRoot "local.env"
-    $content = @"
-PI_HOST=$piHost
-PI_USER=$piUser
-PI_PORT=$piPort
-"@
-    Set-Content -Path $configPath -Value $content -Encoding UTF8
+    $config = Load-LocalConfig
+    if (-not $config) {
+        $config = @{}
+    }
+
+    $config["PI_HOST"] = $piHost
+    $config["PI_USER"] = $piUser
+    $config["PI_PORT"] = $piPort
+
+    $preferredOrder = @(
+        "PI_HOST",
+        "PI_USER",
+        "PI_PORT",
+        "PI_BRANCH",
+        "PI_REMOTE_DIR",
+        "PI_ENV_FILE"
+    )
+
+    $lines = New-Object System.Collections.Generic.List[string]
+    foreach ($key in $preferredOrder) {
+        if ($config.ContainsKey($key)) {
+            $lines.Add("$key=$($config[$key])")
+        }
+    }
+
+    foreach ($key in ($config.Keys | Sort-Object)) {
+        if ($preferredOrder -notcontains $key) {
+            $lines.Add("$key=$($config[$key])")
+        }
+    }
+
+    [System.IO.File]::WriteAllLines(
+        $configPath,
+        [string[]]$lines,
+        [System.Text.UTF8Encoding]::new($false)
+    )
 }
 
 function Load-LocalConfig() {
@@ -169,29 +201,104 @@ function Load-LocalConfig() {
 
     $config = @{}
     Get-Content $configPath | ForEach-Object {
+        if ($_ -match '^\s*#' -or $_ -notmatch '=') {
+            return
+        }
         if ($_ -match '^([^=]+)=(.*)$') {
-            $config[$matches[1].Trim()] = $matches[2].Trim()
+            $key = $matches[1].Trim().TrimStart([char]0xFEFF)
+            $config[$key] = $matches[2].Trim()
         }
     }
     return $config
 }
 
-function Get-DockerRemoteStatus($piHost, $piUser, $piPort) {
+function Invoke-RemoteBashScript($piHost, $piUser, $piPort, $scriptContent) {
     $remote = "$piUser@$piHost"
+    $scriptLf = $scriptContent -replace "`r`n", "`n"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "ssh"
+    $psi.Arguments = "-o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote `"bash -s`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
 
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+    $null = $process.Start()
+
+    try {
+        $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($scriptLf)
+        $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        $process.StandardInput.Close()
+
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+    }
+    finally {
+        $process.Dispose()
+    }
+
+    if ($stdout -and $stderr) {
+        return ($stdout.TrimEnd() + [Environment]::NewLine + $stderr.TrimEnd())
+    }
+    if ($stdout) {
+        return $stdout.TrimEnd()
+    }
+    return $stderr.TrimEnd()
+}
+
+function Get-DockerRemoteStatus($piHost, $piUser, $piPort) {
     # Check Docker daemon
-    $dockerCmd = "docker info 2>&1 | head -1 && echo DOCKER_OK=1 || echo DOCKER_OK=0"
-    $dockerOutput = ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote $dockerCmd 2>&1
+    $dockerCmd = @'
+docker_output="$(docker info 2>&1)"
+docker_status=$?
+printf '%s\n' "$docker_output"
+if [ "$docker_status" -eq 0 ]; then
+  echo DOCKER_OK=1
+else
+  echo DOCKER_OK=0
+fi
+'@
+    $dockerOutput = Invoke-RemoteBashScript $piHost $piUser $piPort $dockerCmd
     $dockerOk = $dockerOutput -match "DOCKER_OK=1"
 
     # Check Docker Compose
-    $composeCmd = "docker compose version 2>&1 && echo COMPOSE_OK=1 || echo COMPOSE_OK=0"
-    $composeOutput = ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote $composeCmd 2>&1
+    $composeCmd = @'
+compose_cmd=""
+if docker compose version >/dev/null 2>&1; then
+  compose_cmd="docker compose"
+  compose_output="$(docker compose version 2>&1)"
+  compose_status=$?
+elif command -v docker-compose >/dev/null 2>&1; then
+  compose_cmd="docker-compose"
+  compose_output="$(docker-compose version 2>&1)"
+  compose_status=$?
+else
+  compose_output="docker compose and docker-compose are both unavailable"
+  compose_status=1
+fi
+printf '%s\n' "$compose_output"
+if [ "$compose_status" -eq 0 ]; then
+  echo COMPOSE_OK=1
+  echo "COMPOSE_CMD=$compose_cmd"
+else
+  echo COMPOSE_OK=0
+fi
+'@
+    $composeOutput = Invoke-RemoteBashScript $piHost $piUser $piPort $composeCmd
     $composeOk = $composeOutput -match "COMPOSE_OK=1"
+    $composeCommand = ""
+    if ($composeOutput -match "COMPOSE_CMD=(.+)") {
+        $composeCommand = $matches[1].Trim()
+    }
 
     $result = @{
         DockerOk = $dockerOk
         ComposeOk = $composeOk
+        ComposeCommand = $composeCommand
         DockerOutput = $dockerOutput
         ComposeOutput = $composeOutput
     }
