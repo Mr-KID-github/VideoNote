@@ -4,15 +4,19 @@ import { ArrowRight, Plus } from 'lucide-react'
 import { useI18n } from '../lib/i18n'
 import { NoteGrid } from '../components/Notes/NoteGrid'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
+import { getWorkspaceLabel, useTeamStore } from '../stores/teamStore'
 
 export function Home() {
   const navigate = useNavigate()
-  const { copy } = useI18n()
+  const { copy, locale } = useI18n()
   const { notes, loading, loadNotes } = useNoteLibraryStore()
+  const { currentWorkspace, teams } = useTeamStore()
+  const isZh = locale.startsWith('zh')
+  const workspaceLabel = getWorkspaceLabel(currentWorkspace, teams, isZh ? '个人空间' : 'Personal workspace')
 
   useEffect(() => {
     void loadNotes()
-  }, [loadNotes])
+  }, [currentWorkspace, loadNotes])
 
   const recentNotes = notes.slice(0, 6)
 
@@ -24,7 +28,7 @@ export function Home() {
             <p className="text-sm uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{copy.home.eyebrow}</p>
             <h2 className="text-3xl font-bold">{copy.home.title}</h2>
             <p className="text-gray-600 dark:text-gray-300">
-              {copy.home.body}
+              {copy.home.body} {isZh ? `当前目标工作区：${workspaceLabel}。` : `Current save target: ${workspaceLabel}.`}
             </p>
           </div>
           <div className="flex flex-wrap gap-3">
@@ -52,7 +56,9 @@ export function Home() {
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-xl font-semibold">{copy.home.recentNotes}</h3>
-            <p className="text-sm text-gray-500 dark:text-gray-400">{copy.home.recentNotesBody}</p>
+            <p className="text-sm text-gray-500 dark:text-gray-400">
+              {isZh ? `${workspaceLabel}里最近保存的内容。` : `Latest saved items from ${workspaceLabel}.`}
+            </p>
           </div>
           <button
             type="button"

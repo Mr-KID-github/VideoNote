@@ -205,6 +205,14 @@ Windows 下可以直接运行：
 - `LLM_BASE_URL`
 - `LLM_MODEL`
 - `TRANSCRIBER_TYPE`
+- `GROQ_API_KEY`
+- `WHISPER_MODEL_SIZE`
+- `WHISPER_DEVICE`
+- `FASTER_WHISPER_COMPUTE_TYPE`
+- `SENSEVOICE_BASE_URL`
+- `SENSEVOICE_LANGUAGE`
+- `SENSEVOICE_MODEL_SIZE`
+- `SENSEVOICE_USE_GPU`
 - `SUMMARY_DEFAULT_MAX_CHARS`
 - `SUMMARY_DEFAULT_MAX_SEGMENTS`
 - `SUMMARY_CHUNK_MAX_CHARS`
@@ -299,6 +307,7 @@ VINote 当前不再依赖 Supabase 进行浏览器认证。
 受保护的浏览器数据接口包括：
 
 - `/api/notes`
+- `/api/teams`
 - `/api/preferences`
 - `/api/model-profiles`
 
@@ -320,7 +329,8 @@ VINote 当前不再依赖 Supabase 进行浏览器认证。
 
 已保存笔记相关接口：
 
-- `GET /api/notes`
+- `GET /api/notes?scope=personal`
+- `GET /api/notes?scope=team&team_id={team_id}`
 - `GET /api/notes/{id}`
 - `POST /api/notes`
 - `PATCH /api/notes/{id}`

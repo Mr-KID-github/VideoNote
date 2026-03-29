@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { apiJson } from '../lib/api'
+import { useTeamStore } from './teamStore'
 
 type NoteRow = {
   id: string
@@ -9,6 +10,9 @@ type NoteRow = {
   source_type: string | null
   task_id: string | null
   status: string
+  scope: 'personal' | 'team'
+  team_id: string | null
+  team_name: string | null
   created_at: string
   updated_at: string
 }
@@ -21,6 +25,9 @@ export interface NoteRecord {
   sourceType?: string
   taskId?: string
   status: string
+  scope: 'personal' | 'team'
+  teamId?: string
+  teamName?: string
   createdAt: string
   updatedAt: string
 }
@@ -63,6 +70,9 @@ const mapRow = (row: NoteRow): NoteRecord => ({
   sourceType: row.source_type ?? undefined,
   taskId: row.task_id ?? undefined,
   status: row.status,
+  scope: row.scope,
+  teamId: row.team_id ?? undefined,
+  teamName: row.team_name ?? undefined,
   createdAt: row.created_at,
   updatedAt: row.updated_at,
 })
@@ -89,7 +99,12 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
     set({ loading: true, error: '' })
 
     try {
-      const data = await apiJson<NoteRow[]>('/api/notes')
+      const workspace = useTeamStore.getState().currentWorkspace
+      const params =
+        workspace.scope === 'team'
+          ? `?scope=team&team_id=${encodeURIComponent(workspace.teamId)}`
+          : '?scope=personal'
+      const data = await apiJson<NoteRow[]>(`/api/notes${params}`)
       set({ notes: data.map(mapRow), loading: false })
     } catch (error) {
       console.error('Failed to load notes:', error)
@@ -123,6 +138,7 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   saveNote: async (title, content, videoUrl, taskId) => {
     try {
       const normalizedTitle = title.trim() || 'Untitled note'
+      const workspace = useTeamStore.getState().currentWorkspace
       const data = await apiJson<NoteRow>('/api/notes', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -133,6 +149,8 @@ export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
           task_id: taskId || null,
           source_type: videoUrl ? 'video' : 'file',
           status: 'done',
+          scope: workspace.scope,
+          team_id: workspace.scope === 'team' ? workspace.teamId : null,
         }),
       })
       const note = mapRow(data)
