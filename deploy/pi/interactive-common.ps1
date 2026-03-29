@@ -214,19 +214,40 @@ function Load-LocalConfig() {
 
 function Invoke-RemoteBashScript($piHost, $piUser, $piPort, $scriptContent) {
     $remote = "$piUser@$piHost"
-    $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "vinote-remote-$PID.sh"
     $scriptLf = $scriptContent -replace "`r`n", "`n"
+    $psi = New-Object System.Diagnostics.ProcessStartInfo
+    $psi.FileName = "ssh"
+    $psi.Arguments = "-o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote `"bash -s`""
+    $psi.UseShellExecute = $false
+    $psi.CreateNoWindow = $true
+    $psi.RedirectStandardInput = $true
+    $psi.RedirectStandardOutput = $true
+    $psi.RedirectStandardError = $true
 
-    [System.IO.File]::WriteAllText($tempScript, $scriptLf, [System.Text.UTF8Encoding]::new($false))
+    $process = New-Object System.Diagnostics.Process
+    $process.StartInfo = $psi
+    $null = $process.Start()
 
     try {
-        Get-Content -Raw $tempScript | ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote "bash -s" 2>&1
+        $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($scriptLf)
+        $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+        $process.StandardInput.Close()
+
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
     }
     finally {
-        if (Test-Path $tempScript) {
-            Remove-Item $tempScript -Force
-        }
+        $process.Dispose()
     }
+
+    if ($stdout -and $stderr) {
+        return ($stdout.TrimEnd() + [Environment]::NewLine + $stderr.TrimEnd())
+    }
+    if ($stdout) {
+        return $stdout.TrimEnd()
+    }
+    return $stderr.TrimEnd()
 }
 
 function Get-DockerRemoteStatus($piHost, $piUser, $piPort) {

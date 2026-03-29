@@ -175,19 +175,41 @@ $remoteScript = $remoteScript.Replace("__TARGET_USER__", $User)
 $remoteScript = $remoteScript.Replace("__TARGET_REMOTE_DIR__", $RemoteDir)
 
 Write-Host "Bootstrapping Raspberry Pi environment on $remote..."
-$tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "vinote-bootstrap-$PID.sh"
 $remoteScriptLf = $remoteScript -replace "`r`n", "`n"
-[System.IO.File]::WriteAllText($tempScript, $remoteScriptLf, [System.Text.UTF8Encoding]::new($false))
+$psi = New-Object System.Diagnostics.ProcessStartInfo
+$psi.FileName = "ssh"
+$psi.Arguments = "-tt -p $Port $remote `"bash -s`""
+$psi.UseShellExecute = $false
+$psi.CreateNoWindow = $true
+$psi.RedirectStandardInput = $true
+$psi.RedirectStandardOutput = $true
+$psi.RedirectStandardError = $true
+
+$process = New-Object System.Diagnostics.Process
+$process.StartInfo = $psi
+$null = $process.Start()
 
 try {
-    $output = Get-Content -Raw $tempScript | ssh -tt -p $Port $remote "bash -s" 2>&1
+    $bytes = [System.Text.UTF8Encoding]::new($false).GetBytes($remoteScriptLf)
+    $process.StandardInput.BaseStream.Write($bytes, 0, $bytes.Length)
+    $process.StandardInput.Close()
+
+    $stdout = $process.StandardOutput.ReadToEnd()
+    $stderr = $process.StandardError.ReadToEnd()
+    $process.WaitForExit()
+    $exitCode = $process.ExitCode
 }
 finally {
-    if (Test-Path $tempScript) {
-        Remove-Item $tempScript -Force
-    }
+    $process.Dispose()
 }
-$exitCode = $LASTEXITCODE
+
+$output = @()
+if ($stdout) {
+    $output += ($stdout -split "`r?`n" | Where-Object { $_ -ne "" })
+}
+if ($stderr) {
+    $output += ($stderr -split "`r?`n" | Where-Object { $_ -ne "" })
+}
 
 $output | ForEach-Object { Write-Host $_ }
 
