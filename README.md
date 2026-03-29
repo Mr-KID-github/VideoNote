@@ -264,20 +264,52 @@ docker compose up --build
 推荐流程：
 
 1. 从 `.env.example` 复制生成根目录 `.env`
-2. 可选：从 `deploy/pi/local.env.example` 创建 `deploy/pi/local.env`
-3. 执行部署脚本
+2. 从 `deploy/pi/local.env.example` 创建 `deploy/pi/local.env`
+3. 先运行初始化脚本，自动检查并安装 Docker / Docker Compose、创建远程目录
+4. 再执行部署脚本
 
-PowerShell：
+初始化 PowerShell：
+
+```powershell
+.\deploy\pi\bootstrap-pi.ps1
+```
+
+初始化 Bash：
+
+```bash
+./deploy/pi/bootstrap-pi.sh
+```
+
+交互式部署 PowerShell：
+
+```powershell
+.\deploy\pi\deploy-pi-interactive.ps1
+```
+
+交互式部署 Bash：
+
+```bash
+./deploy/pi/deploy-pi-interactive.sh
+```
+
+非交互部署 PowerShell：
 
 ```powershell
 .\deploy\pi\deploy-pi.ps1
 ```
 
-Bash：
+非交互部署 Bash：
 
 ```bash
 ./deploy/pi/deploy-pi.sh
 ```
+
+说明：
+
+- 初始化脚本会优先使用 `docker compose`，并在老环境下自动兼容 `docker-compose`
+- 交互式部署脚本在检测到 Docker 或 Docker Compose 缺失时，可以直接调用初始化脚本
+- `deploy/pi/local.env` 中的 `PI_REMOTE_DIR` 和 `PI_ENV_FILE` 不会再被交互流程覆盖
+- 更详细的树莓派部署说明见 [deploy/pi/README.md](./deploy/pi/README.md)
 
 部署后可访问：
 

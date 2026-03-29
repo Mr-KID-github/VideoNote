@@ -65,6 +65,10 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - Docs install: `cd docs && npm install`
 - Docs dev server: `cd docs && npm run docs:dev`
 - Docs build: `cd docs && npm run docs:build`
+- Raspberry Pi bootstrap (PowerShell): `.\deploy\pi\bootstrap-pi.ps1`
+- Raspberry Pi bootstrap (Bash): `./deploy/pi/bootstrap-pi.sh`
+- Raspberry Pi interactive deploy (PowerShell): `.\deploy\pi\deploy-pi-interactive.ps1`
+- Raspberry Pi interactive deploy (Bash): `./deploy/pi/deploy-pi-interactive.sh`
 - Windows convenience launcher: `.\start-dev.ps1` or `.\start-dev.bat`
 
 Default local ports:
@@ -94,6 +98,11 @@ Frontend Vite settings live in `frontend/.env.local`:
 - `VITE_API_BASE_URL` (leave empty for the local Vite proxy, or set an absolute backend URL)
 - `VITE_DOCS_BASE_URL` (optional absolute docs-site URL; when empty the app falls back to backend Swagger docs)
   - local dev special case: when the frontend runs on port `3100`, the sidebar `Document` link defaults to `http://localhost:3101/`
+
+Raspberry Pi deployment defaults live in `deploy/pi/local.env`:
+- `PI_HOST`, `PI_USER`, `PI_PORT`: SSH connection target for bootstrap and deploy scripts
+- `PI_REMOTE_DIR`: remote app directory used by bootstrap and deploy scripts
+- `PI_ENV_FILE`: root-level env file that should be uploaded to the Pi during deploy
 
 ## Testing and Verification
 The repository already contains backend tests under `tests/`.
