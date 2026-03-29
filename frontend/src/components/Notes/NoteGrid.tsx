@@ -11,7 +11,8 @@ interface NoteGridProps {
 }
 
 export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen }: NoteGridProps) {
-  const { copy, formatDate } = useI18n()
+  const { copy, formatDate, locale } = useI18n()
+  const isZh = locale.startsWith('zh')
 
   if (loading) {
     return (
@@ -40,7 +41,12 @@ export function NoteGrid({ notes, loading = false, emptyTitle, emptyBody, onOpen
           onClick={() => onOpen(note)}
           className="rounded-2xl border border-gray-200 bg-white p-5 text-left transition-colors hover:border-primary-light dark:border-gray-700 dark:bg-[#202020] dark:hover:border-primary-dark"
         >
-          <h3 className="font-semibold">{note.title}</h3>
+          <div className="flex items-start justify-between gap-3">
+            <h3 className="font-semibold">{note.title}</h3>
+            <span className="shrink-0 rounded-full bg-gray-100 px-2 py-1 text-[11px] font-medium text-gray-600 dark:bg-[#161616] dark:text-gray-300">
+              {note.scope === 'team' ? note.teamName || (isZh ? '团队' : 'Team') : (isZh ? '个人' : 'Personal')}
+            </span>
+          </div>
           <p className="mt-3 line-clamp-4 text-sm text-gray-500 dark:text-gray-400">
             {note.content || copy.notes.noContent}
           </p>

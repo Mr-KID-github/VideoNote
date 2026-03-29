@@ -159,6 +159,8 @@ export function NoteEditor() {
   const [content, setContent] = useState('')
   const [videoUrl, setVideoUrl] = useState('')
   const [taskId, setTaskId] = useState('')
+  const [noteScope, setNoteScope] = useState<'personal' | 'team'>('personal')
+  const [noteWorkspaceName, setNoteWorkspaceName] = useState('')
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [shareLoading, setShareLoading] = useState(false)
@@ -174,6 +176,9 @@ export function NoteEditor() {
   const activeMoment = findActiveKeyMoment(keyMoments, currentTimestamp)
   const localMediaUrl = id && taskId ? `/api/notes/${id}/media` : undefined
   const splitLabel = locale.startsWith('zh') ? '对照' : 'Split'
+  const workspaceBadge = noteScope === 'team'
+    ? noteWorkspaceName || (locale.startsWith('zh') ? '团队笔记' : 'Team note')
+    : (locale.startsWith('zh') ? '个人笔记' : 'Personal note')
   const shareCopy = {
     title: locale.startsWith('zh') ? 'LAN share' : 'LAN sharing',
     description: 'Generate a backend-hosted public link that other devices on your LAN can open directly.',
@@ -213,6 +218,8 @@ export function NoteEditor() {
       setContent(note.content)
       setVideoUrl(note.videoUrl || '')
       setTaskId(note.taskId || '')
+      setNoteScope(note.scope)
+      setNoteWorkspaceName(note.teamName || '')
       setError('')
       setLoading(false)
 
@@ -412,6 +419,9 @@ export function NoteEditor() {
               className="w-full min-w-[220px] border-none bg-transparent text-lg font-semibold outline-none focus:ring-0"
             />
             <p className="text-xs text-gray-500 dark:text-gray-400">
+              <span className="mr-2 inline-flex rounded-full bg-white/70 px-2 py-0.5 text-[11px] font-medium text-gray-600 dark:bg-[#1a1a1a] dark:text-gray-300">
+                {workspaceBadge}
+              </span>
               {keyMoments.length} key moments with direct timestamp jumps
             </p>
           </div>

@@ -9,6 +9,7 @@ import { useModelProfileStore } from '../stores/modelProfileStore'
 import { useNoteGenerationStore } from '../stores/noteGenerationStore'
 import { useNoteLibraryStore } from '../stores/noteLibraryStore'
 import { useSTTProfileStore } from '../stores/sttProfileStore'
+import { getWorkspaceLabel, useTeamStore } from '../stores/teamStore'
 
 type TaskResponse = { task_id: string }
 type SummaryMode = 'default' | 'accurate' | 'oneshot'
@@ -42,6 +43,7 @@ export function NoteGenerator() {
     reset,
   } = useNoteGenerationStore()
   const { saveNote } = useNoteLibraryStore()
+  const { currentWorkspace, teams, loadTeams } = useTeamStore()
   const { profiles, selectedProfileId, selectProfile, loadProfiles } = useModelProfileStore()
   const {
     profiles: sttProfiles,
@@ -54,7 +56,8 @@ export function NoteGenerator() {
   useEffect(() => {
     void loadProfiles()
     void loadSTTProfiles()
-  }, [loadProfiles, loadSTTProfiles])
+    void loadTeams()
+  }, [loadProfiles, loadSTTProfiles, loadTeams])
 
   const pollTaskStatus = (id: string) => {
     pollRef.current = setInterval(async () => {
@@ -149,6 +152,11 @@ export function NoteGenerator() {
   const defaultProfile = profiles.find((profile) => profile.isDefault)
   const selectedSTTProfile = sttProfiles.find((profile) => profile.id === selectedSTTProfileId)
   const defaultSTTProfile = sttProfiles.find((profile) => profile.isDefault)
+  const workspaceLabel = getWorkspaceLabel(
+    currentWorkspace,
+    teams,
+    language === 'zh-CN' ? '个人空间' : 'Personal workspace',
+  )
   const summaryModeOptions: Array<{ value: SummaryMode; label: string; description: string }> =
     language === 'zh-CN'
       ? [
@@ -210,6 +218,18 @@ export function NoteGenerator() {
           onFileSelect={setSelectedFile}
           fileUploadEnabled={false}
         />
+
+        <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
+          <label className="block text-sm font-medium mb-2">
+            {language === 'zh-CN' ? '保存目标工作区' : 'Save target workspace'}
+          </label>
+          <p className="text-sm text-gray-600 dark:text-gray-300">{workspaceLabel}</p>
+          <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
+            {language === 'zh-CN'
+              ? '生成完成后，这篇笔记会直接保存到当前选中的工作区。'
+              : 'When generation finishes, the note will be saved into the currently selected workspace.'}
+          </p>
+        </div>
 
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
           <label className="block text-sm font-medium mb-2">{copy.generator.modelProfileLabel}</label>
