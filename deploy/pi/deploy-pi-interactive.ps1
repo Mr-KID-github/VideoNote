@@ -533,7 +533,7 @@ mkdir -p data output
 
 $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "vinote-deploy-$PID.sh"
 $deployScriptLf = $deployScript -replace "`r`n", "`n"
-[System.IO.File]::WriteText($tempScript, $deployScriptLf, [System.Text.UTF8Encoding]::new($false))
+[System.IO.File]::WriteAllText($tempScript, $deployScriptLf, [System.Text.UTF8Encoding]::new($false))
 
 $scriptPath = "/tmp/vinote-deploy.sh"
 
