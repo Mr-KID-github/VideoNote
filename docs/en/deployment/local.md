@@ -213,6 +213,56 @@ The workflow:
 
 The deploy script refreshes the app directory but preserves `data/` and `output/`.
 
+### What manual trigger means in practice
+
+If you do not want every merge to `dev` to update the shared LAN environment immediately, the safer approach is to keep only `workflow_dispatch` and trigger deployment manually after your local checks and PR CI are green.
+
+Manual trigger does not mean running deployment commands on your laptop. It means using the GitHub Actions UI:
+
+1. Open the repository
+2. Go to `Actions`
+3. Open `Deploy Pi Test Environment`
+4. Click `Run workflow`
+5. Choose the branch to deploy, usually `dev`
+6. Confirm the run
+
+GitHub then schedules the job, the Pi self-hosted runner picks it up, and the Pi deploys locally.
+
+If you later enable Environment reviewers, GitHub will pause before deployment until someone approves it. Without reviewers, manual trigger is simply a button in the Actions page.
+
+### Data retention and deployment safety
+
+With the current deployment design, a normal deploy should preserve existing shared data, notes, and generated artifacts.
+
+Why data is retained:
+
+- Postgres uses a named Docker volume in `docker-compose.yml`
+- `deploy-from-checkout.sh` refreshes the code checkout but keeps `data/` and `output/`
+- the workflow uses `docker compose up -d --build --remove-orphans`
+- the workflow does not run `docker compose down -v`
+
+What is normally preserved after deploy:
+
+- database-backed users, teams, notes, and settings
+- existing files under `/home/zouyu/vinote/data`
+- existing files under `/home/zouyu/vinote/output`
+
+What can still cause data loss or an unsafe deploy:
+
+- manually running `docker compose down -v`
+- manually deleting Docker volumes
+- manually deleting `/home/zouyu/vinote/data` or `/home/zouyu/vinote/output`
+- changing `PI_REMOTE_DIR` by mistake
+- changing `COMPOSE_PROJECT_NAME` so Compose points at a different project
+- introducing destructive database migrations
+
+Recommended practice for a shared LAN environment:
+
+- validate locally first
+- wait for PR CI to finish
+- trigger Pi deployment manually when you are ready to update the shared environment
+- treat `docker compose down -v` as a destructive recovery command, not a normal deployment command
+
 ## LAN notes
 
 - When `SHARE_BASE_URL` is empty, the backend will infer a LAN share URL when possible
