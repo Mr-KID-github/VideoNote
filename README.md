@@ -1,6 +1,6 @@
 # VINote
 
-VINote is a full-stack app that turns video or audio into structured Markdown notes.
+VINote is a full-stack app that turns video or audio into structured Markdown notes, then saves them into either a personal workspace or a shared team workspace.
 
 Current stack:
 
@@ -19,8 +19,9 @@ Browser
   -> Frontend (React)
   -> FastAPI API
      -> Auth service
+     -> Team / membership service
      -> Note generation pipeline
-     -> Notes / preferences / model profiles / STT profiles repositories
+     -> Notes / teams / preferences / model profiles / STT profiles repositories
      -> PostgreSQL
      -> output/ task artifacts
 ```
@@ -36,7 +37,9 @@ Main backend responsibilities:
 - `app/services/auth_service.py`
   - email/password auth, JWT issue/verify, auth cookie handling
 - `app/services/note_repository.py`
-  - saved note CRUD
+  - personal/team note CRUD plus workspace access control
+- `app/services/team_repository.py`
+  - team CRUD and membership management
 - `app/services/preferences_repository.py`
   - user preference persistence
 - `app/services/model_profile_repository.py`
@@ -64,7 +67,9 @@ Main frontend responsibilities:
 - `frontend/src/stores/authStore.ts`
   - cookie-auth session lifecycle
 - `frontend/src/stores/noteLibraryStore.ts`
-  - note library CRUD via backend API
+  - note library CRUD via backend API, scoped by the currently selected personal/team workspace
+- `frontend/src/stores/teamStore.ts`
+  - team list, membership management, and current workspace selection
 - `frontend/src/components/Notes/VideoReferencePanel.tsx`
   - sticky source-media panel for timestamp jumping during note preview, with audio fallback for non-embeddable sources
 - `frontend/src/components/Notes/KeyMomentsRail.tsx`
@@ -88,6 +93,12 @@ Media preview behavior:
 - Embeddable sources such as YouTube and Bilibili render an iframe.
 - Audio-only or non-embeddable sources fall back to `/api/notes/{note_id}/media` so timestamp clicks can still seek the extracted audio.
 - The note editor now supports a split workspace with a draggable divider between Markdown source and rendered preview.
+
+Workspace behavior:
+
+- Notes are saved into either the personal workspace or one selected team workspace.
+- Sidebar workspace switching changes the note list, home-page recent notes, and the save target used by the generator.
+- Team members can open, edit, delete, and share team notes through the same `/api/notes/*` endpoints.
 
 STT profile behavior:
 
@@ -291,6 +302,7 @@ The backend sets an HttpOnly cookie after sign-in or sign-up. Browser requests u
 Protected browser data APIs:
 
 - `/api/notes`
+- `/api/teams`
 - `/api/preferences`
 - `/api/model-profiles`
 
@@ -309,7 +321,8 @@ Generated notes now include per-section video jump links and API-served screensh
 
 Saved-note APIs:
 
-- `GET /api/notes`
+- `GET /api/notes?scope=personal`
+- `GET /api/notes?scope=team&team_id={team_id}`
 - `GET /api/notes/{id}`
 - `POST /api/notes`
 - `PATCH /api/notes/{id}`
@@ -317,6 +330,19 @@ Saved-note APIs:
 - `GET /api/notes/{id}/share`
 - `POST /api/notes/{id}/share`
 - `DELETE /api/notes/{id}/share`
+
+`POST /api/notes` now accepts:
+
+- `scope`: `personal` or `team`
+- `team_id`: required when `scope` is `team`
+
+Team APIs:
+
+- `GET /api/teams`
+- `GET /api/teams/{team_id}`
+- `POST /api/teams`
+- `POST /api/teams/{team_id}/members`
+- `DELETE /api/teams/{team_id}/members/{member_id}`
 
 Public share endpoints:
 

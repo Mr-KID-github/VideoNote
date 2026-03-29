@@ -1,10 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { BookText, ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
 import packageJson from '../../../package.json'
 import { useI18n } from '../../lib/i18n'
 import { resolveDocumentUrl } from '../../lib/runtimeConfig'
+import { getWorkspaceLabel, useTeamStore } from '../../stores/teamStore'
 
 interface FolderItem {
   id: string
@@ -17,9 +18,24 @@ export function Sidebar() {
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set())
   const navigate = useNavigate()
   const location = useLocation()
-  const { copy } = useI18n()
+  const { copy, locale } = useI18n()
   const appVersion = `v${packageJson.version}`
   const docsUrl = resolveDocumentUrl()
+  const isZh = locale.startsWith('zh')
+  const {
+    teams,
+    currentWorkspace,
+    loadTeams,
+    initialized,
+    selectPersonalWorkspace,
+    selectTeamWorkspace,
+  } = useTeamStore()
+
+  useEffect(() => {
+    if (!initialized) {
+      void loadTeams()
+    }
+  }, [initialized, loadTeams])
 
   const toggleFolder = (id: string) => {
     setExpandedFolders((previous) => {
@@ -61,17 +77,51 @@ export function Sidebar() {
         <div className="flex items-center justify-between px-3 py-2">
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{copy.sidebar.workspace}</span>
           <button
-            onClick={() => {}}
+            onClick={() => navigate('/team')}
             className="p-1 rounded hover:bg-gray-200 dark:hover:bg-gray-700"
-            title={copy.sidebar.createFolder}
+            title={isZh ? '管理团队' : 'Manage teams'}
           >
             <Plus className="w-4 h-4 text-gray-500" />
           </button>
         </div>
 
-        <div className="space-y-0.5">
+        <div className="space-y-1">
+          <button
+            type="button"
+            onClick={() => selectPersonalWorkspace()}
+            className={clsx(
+              'w-full rounded-lg px-3 py-2 text-left text-sm transition-colors',
+              currentWorkspace.scope === 'personal'
+                ? 'bg-primary-light/10 text-primary-light dark:bg-primary-dark/10 dark:text-primary-dark'
+                : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+            )}
+          >
+            {isZh ? '个人空间' : 'Personal workspace'}
+          </button>
+
+          {teams.map((team) => (
+            <button
+              key={team.id}
+              type="button"
+              onClick={() => selectTeamWorkspace(team.id)}
+              className={clsx(
+                'w-full rounded-lg px-3 py-2 text-left text-sm transition-colors',
+                currentWorkspace.scope === 'team' && currentWorkspace.teamId === team.id
+                  ? 'bg-primary-light/10 text-primary-light dark:bg-primary-dark/10 dark:text-primary-dark'
+                  : 'text-gray-700 hover:bg-gray-100 dark:text-gray-300 dark:hover:bg-gray-700'
+              )}
+            >
+              <div className="truncate font-medium">{team.name}</div>
+              <div className="mt-0.5 text-xs text-gray-400">
+                {team.memberCount} {isZh ? '成员' : team.memberCount === 1 ? 'member' : 'members'}
+              </div>
+            </button>
+          ))}
+
           {folders.length === 0 ? (
-            <p className="px-3 py-2 text-xs text-gray-400">{copy.sidebar.noFolders}</p>
+            <p className="px-3 py-2 text-xs text-gray-400">
+              {getWorkspaceLabel(currentWorkspace, teams, isZh ? '个人空间' : 'Personal workspace')}
+            </p>
           ) : (
             folders.map((folder) => (
               <FolderItemComponent
@@ -82,6 +132,10 @@ export function Sidebar() {
               />
             ))
           )}
+
+          {teams.length === 0 ? (
+            <p className="px-3 py-2 text-xs text-gray-400">{isZh ? '还没有团队。' : 'No teams yet.'}</p>
+          ) : null}
         </div>
       </div>
 

@@ -3,15 +3,15 @@
 ## Architecture Overview
 VINote is a full-stack video-to-note workspace with three moving parts:
 
-- Backend: FastAPI API for downloading media, transcribing audio, generating Markdown notes, and managing per-user LLM model profiles plus STT profiles.
-- Frontend: Vite + React + TypeScript app for authentication, note generation, note library browsing, editing, and settings.
+- Backend: FastAPI API for downloading media, transcribing audio, generating Markdown notes, managing per-user LLM model profiles plus STT profiles, and handling team workspaces plus team membership.
+- Frontend: Vite + React + TypeScript app for authentication, note generation, personal/team note browsing, editing, team management, and settings.
 - Database/Auth: Postgres-backed storage plus FastAPI-issued JWT auth stored in an HttpOnly cookie.
 
 The backend can also run as a lightweight MCP server through `mcp_server.py`.
 
 ## Project Structure
 - `app/`
-  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
+  - `routers/`: FastAPI route modules. `note.py` exposes generation/status APIs plus task-artifact media routes. `note_library.py` also exposes authenticated saved-note media playback routes. `teams.py` exposes authenticated team and membership APIs. `share.py` exposes authenticated share-link APIs plus public shared-note routes. `model_profiles.py` exposes authenticated LLM model-profile APIs. `stt_profiles.py` exposes authenticated STT profile APIs. `mcp.py` exposes the LAN HTTP MCP endpoint at `/mcp`.
   - `services/`: orchestration and domain services.
     - `note_service.py`: main pipeline coordinator.
     - `mcp_service.py`: shared MCP tool definitions and JSON-RPC request handling used by both the stdio server and the HTTP `/mcp` endpoint.
@@ -23,6 +23,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
     - `model_profile_*`: encrypted model profile CRUD and connection testing.
     - `stt_profile_*`: encrypted STT profile CRUD and provider-specific normalization.
     - `auth_service.py`: local email/password auth plus JWT cookie validation for protected APIs.
+    - `team_repository.py`: team CRUD, membership management, and team access checks.
     - `share_service.py`: builds public share URLs and renders read-only shared-note HTML.
     - `screenshot_service.py`: replaces `[[Screenshot:mm:ss]]` placeholders with extracted frame images.
   - `downloaders/`: media download/extraction adapters built around `yt-dlp`.
@@ -30,9 +31,9 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
   - `llm/`: summarizer implementations and prompt templates.
   - `models/`: Pydantic/dataclass request, response, and domain models.
 - `frontend/src/`
-  - `pages/`: route-level screens such as home, generator, notes, editor, login, settings.
+  - `pages/`: route-level screens such as home, generator, notes, editor, login, team, and settings.
   - `components/`: reusable UI building blocks.
-  - `stores/`: Zustand stores for auth, theme, note generation, note library, model profiles, STT profiles, and language.
+  - `stores/`: Zustand stores for auth, theme, note generation, note library, team workspace selection, model profiles, STT profiles, and language.
   - `lib/`: API wrapper, Supabase client, i18n copy, and model/STT profile client helpers.
 - `supabase/`: local Supabase config, start scripts, and SQL migrations.
 - `tests/`: backend unit tests.
@@ -43,7 +44,6 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 - `output/`: per-task artifacts and generated Markdown notes.
 
 ## Runtime Flow
-1. Frontend authenticates users with Supabase Auth and forwards the access token to backend `/api/*` requests.
 1. Frontend signs users in against FastAPI auth endpoints and browser requests carry the HttpOnly auth cookie to `/api/*`.
 2. `NoteService` creates a task directory under `output/`, downloads or prepares audio, and updates `status.json`.
 3. `TranscriptionService` loads the selected transcriber, optionally chunks long audio, and saves `transcript.json`.
@@ -51,7 +51,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
 5. `TranscriptionService` resolves the active STT configuration in this order: request `stt_profile_id` > signed-in user's default STT profile > `.env` `TRANSCRIBER_*` defaults.
 6. `NoteMediaService` enriches the generated Markdown with section-level timestamp jump links and screenshot markers, then `ScreenshotService` downloads the full video and injects extracted frames.
 7. `TaskArtifactService` writes `note.md`, `result.json`, `status.json`, and the `.task_id` mapping.
-8. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, and can optionally generate a public `/share/{token}` link for LAN access.
+8. Frontend polls `/api/task/{task_id}`, stores the final note row together with `task_id` in the backend `notes` table under either the current personal workspace or a selected team workspace, renders key moments as timestamp-and-screenshot cards, shows the source media beside preview content when available, seeks embedded video or extracted audio when note timestamps are clicked, and can optionally generate a public `/share/{token}` link for LAN access.
 
 ## Build, Run, and Dev Commands
 - Backend install: `pip install -r requirements.txt`
@@ -126,4 +126,5 @@ Update `README.md`, this `AGENTS.md`, or both whenever you change:
 - The current frontend does not yet upload local files from the browser, even though backend file-based generation endpoints exist.
 - The note generator UI exposes both LLM profile selection and STT profile selection; `default` summary mode still auto-switches to hierarchical summarization for longer transcripts.
 - Share links are public read-only links backed by `notes.share_token` and can be disabled from the note editor.
+- Saved notes are now explicitly scoped as either personal notes or team notes. Team notes require `scope="team"` plus a valid `team_id`, and any signed-in team member can open them through the normal note APIs.
 - If documentation and code disagree, trust the code, then fix the documentation in the same change.
