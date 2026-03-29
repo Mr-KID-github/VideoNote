@@ -212,9 +212,24 @@ function Load-LocalConfig() {
     return $config
 }
 
-function Get-DockerRemoteStatus($piHost, $piUser, $piPort) {
+function Invoke-RemoteBashScript($piHost, $piUser, $piPort, $scriptContent) {
     $remote = "$piUser@$piHost"
+    $tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "vinote-remote-$PID.sh"
+    $scriptLf = $scriptContent -replace "`r`n", "`n"
 
+    [System.IO.File]::WriteAllText($tempScript, $scriptLf, [System.Text.UTF8Encoding]::new($false))
+
+    try {
+        Get-Content -Raw $tempScript | ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote "bash -s" 2>&1
+    }
+    finally {
+        if (Test-Path $tempScript) {
+            Remove-Item $tempScript -Force
+        }
+    }
+}
+
+function Get-DockerRemoteStatus($piHost, $piUser, $piPort) {
     # Check Docker daemon
     $dockerCmd = @'
 docker_output="$(docker info 2>&1)"
@@ -226,7 +241,7 @@ else
   echo DOCKER_OK=0
 fi
 '@
-    $dockerOutput = ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote $dockerCmd 2>&1
+    $dockerOutput = Invoke-RemoteBashScript $piHost $piUser $piPort $dockerCmd
     $dockerOk = $dockerOutput -match "DOCKER_OK=1"
 
     # Check Docker Compose
@@ -252,7 +267,7 @@ else
   echo COMPOSE_OK=0
 fi
 '@
-    $composeOutput = ssh -o ConnectTimeout=5 -o BatchMode=yes -p $piPort $remote $composeCmd 2>&1
+    $composeOutput = Invoke-RemoteBashScript $piHost $piUser $piPort $composeCmd
     $composeOk = $composeOutput -match "COMPOSE_OK=1"
     $composeCommand = ""
     if ($composeOutput -match "COMPOSE_CMD=(.+)") {

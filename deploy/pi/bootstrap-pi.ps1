@@ -175,7 +175,18 @@ $remoteScript = $remoteScript.Replace("__TARGET_USER__", $User)
 $remoteScript = $remoteScript.Replace("__TARGET_REMOTE_DIR__", $RemoteDir)
 
 Write-Host "Bootstrapping Raspberry Pi environment on $remote..."
-$output = ssh -tt -p $Port $remote $remoteScript 2>&1
+$tempScript = Join-Path ([System.IO.Path]::GetTempPath()) "vinote-bootstrap-$PID.sh"
+$remoteScriptLf = $remoteScript -replace "`r`n", "`n"
+[System.IO.File]::WriteAllText($tempScript, $remoteScriptLf, [System.Text.UTF8Encoding]::new($false))
+
+try {
+    $output = Get-Content -Raw $tempScript | ssh -tt -p $Port $remote "bash -s" 2>&1
+}
+finally {
+    if (Test-Path $tempScript) {
+        Remove-Item $tempScript -Force
+    }
+}
 $exitCode = $LASTEXITCODE
 
 $output | ForEach-Object { Write-Host $_ }
