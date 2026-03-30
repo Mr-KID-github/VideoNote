@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { apiJson } from '../lib/api'
+import { resolveBackendOrigin } from '../lib/runtimeConfig'
 import type { WorkspaceSelection } from './teamStore'
 
 type NoteRow = {
@@ -95,9 +96,17 @@ const mapShareRow = (row: {
   title: row.title,
   shareEnabled: row.share_enabled,
   shareToken: row.share_token ?? undefined,
-  shareUrl: row.share_url ?? undefined,
+  shareUrl: row.share_url ?? resolveShareUrl(row.share_token ?? undefined, row.share_enabled),
   shareCreatedAt: row.share_created_at ?? undefined,
 })
+
+function resolveShareUrl(shareToken: string | undefined, shareEnabled: boolean) {
+  if (!shareEnabled || !shareToken || typeof window === 'undefined') {
+    return undefined
+  }
+
+  return `${resolveBackendOrigin().replace(/\/$/, '')}/share/${shareToken}`
+}
 
 export const useNoteLibraryStore = create<NoteLibraryState>((set, get) => ({
   ...initialState,

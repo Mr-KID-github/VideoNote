@@ -237,7 +237,7 @@ export function STTProfileManager() {
               {copy.sttProfiles.empty}
             </div>
           ) : (
-            <div className="max-h-[620px] space-y-3 overflow-y-auto pr-1">
+            <div className="stealth-scroll max-h-[620px] space-y-3 overflow-y-auto pr-1">
               {profiles.map((profile) => (
                 <div
                   key={profile.id}

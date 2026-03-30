@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Eye, EyeOff, Lock, Mail } from 'lucide-react'
+import { AppFooter } from '../components/Layout/AppFooter'
 import { useI18n } from '../lib/i18n'
 import { useAuthStore } from '../stores/authStore'
 
@@ -55,7 +56,8 @@ export function Login() {
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#191919] p-4">
+    <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-[#191919] p-4 pb-24">
+      <AppFooter />
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <h1 className="text-3xl font-bold text-gray-900 dark:text-white mb-2">VINote</h1>
