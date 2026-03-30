@@ -1,10 +1,9 @@
 import { useEffect, useState } from 'react'
-import { BookText, ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
+import { ChevronDown, ChevronRight, FileText, Folder, Home, Plus, Settings, Users } from 'lucide-react'
 import { useLocation, useNavigate } from 'react-router-dom'
 import clsx from 'clsx'
-import packageJson from '../../../package.json'
+import { AppFooter } from './AppFooter'
 import { useI18n } from '../../lib/i18n'
-import { resolveDocumentUrl } from '../../lib/runtimeConfig'
 import { getWorkspaceLabel, useTeamStore } from '../../stores/teamStore'
 
 interface FolderItem {
@@ -19,8 +18,6 @@ export function Sidebar() {
   const navigate = useNavigate()
   const location = useLocation()
   const { copy, locale } = useI18n()
-  const appVersion = `v${packageJson.version}`
-  const docsUrl = resolveDocumentUrl()
   const isZh = locale.startsWith('zh')
   const {
     teams,
@@ -54,7 +51,7 @@ export function Sidebar() {
   ]
 
   return (
-    <aside className="w-60 border-r border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-[#202020] flex flex-col">
+    <aside className="relative flex h-full w-60 flex-col overflow-hidden border-r border-gray-200 bg-gray-50 dark:border-gray-700 dark:bg-[#202020]">
       <nav className="p-2 space-y-0.5">
         {navItems.map((item) => (
           <button
@@ -73,7 +70,7 @@ export function Sidebar() {
         ))}
       </nav>
 
-      <div className="flex-1 overflow-auto p-2">
+      <div className="min-h-0 flex-1 overflow-auto p-2 pb-32">
         <div className="flex items-center justify-between px-3 py-2">
           <span className="text-xs font-medium text-gray-500 dark:text-gray-400">{copy.sidebar.workspace}</span>
           <button
@@ -139,18 +136,7 @@ export function Sidebar() {
         </div>
       </div>
 
-      <div className="border-t border-gray-200 dark:border-gray-700 px-3 py-3">
-        <p className="text-xs font-medium text-gray-500 dark:text-gray-400">{appVersion}</p>
-        <a
-          href={docsUrl}
-          target="_blank"
-          rel="noreferrer"
-          className="mt-2 inline-flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-gray-700 transition-colors hover:bg-gray-100 hover:text-primary-light dark:text-gray-300 dark:hover:bg-gray-700 dark:hover:text-primary-dark"
-        >
-          <BookText className="h-4 w-4" />
-          <span>Document</span>
-        </a>
-      </div>
+      <AppFooter placement="sidebar" />
     </aside>
   )
 }

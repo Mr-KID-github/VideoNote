@@ -179,16 +179,22 @@ export function NoteEditor() {
   const workspaceBadge = noteScope === 'team'
     ? noteWorkspaceName || (locale.startsWith('zh') ? '团队笔记' : 'Team note')
     : (locale.startsWith('zh') ? '个人笔记' : 'Personal note')
+  const shareUrl = shareState?.shareEnabled ? shareState.shareUrl : undefined
   const shareCopy = {
-    title: locale.startsWith('zh') ? 'LAN share' : 'LAN sharing',
-    description: 'Generate a backend-hosted public link that other devices on your LAN can open directly.',
-    generate: 'Generate and copy',
-    copy: 'Copy link',
+    title: locale.startsWith('zh') ? '分享链接' : 'Share link',
+    description: locale.startsWith('zh')
+      ? '生成一个后端托管的公开链接，局域网内的其他设备可以直接打开。'
+      : 'Create a backend-hosted public link that other devices on your LAN can open directly.',
+    create: locale.startsWith('zh') ? '创建链接' : 'Create link',
+    copy: locale.startsWith('zh') ? '复制链接' : 'Copy link',
     disable: 'Disable sharing',
     disabled: 'Sharing is currently disabled.',
-    copied: 'Share link copied to clipboard',
-    copyFailed: 'Copy failed. Please copy the link manually.',
-    createFailed: 'Failed to create share link',
+    created: locale.startsWith('zh') ? '分享链接已创建' : 'Share link created',
+    copied: locale.startsWith('zh') ? '分享链接已复制到剪贴板' : 'Share link copied to clipboard',
+    copyBlocked: locale.startsWith('zh')
+      ? '浏览器阻止了剪贴板访问，请手动复制下方链接。'
+      : 'Clipboard access is blocked in this browser. Copy the link below manually.',
+    createFailed: locale.startsWith('zh') ? '创建分享链接失败' : 'Failed to create share link',
     disableFailed: 'Failed to disable sharing',
     disabledSuccess: 'Sharing disabled. The old link is no longer accessible.',
   }
@@ -261,20 +267,25 @@ export function NoteEditor() {
     setSaving(false)
   }
 
-  const copyShareUrl = async (url: string) => {
+  const copyShareUrl = async (url: string, options?: { silentFailure?: boolean }) => {
     try {
       if (navigator.clipboard?.writeText) {
         await navigator.clipboard.writeText(url)
         setShareMessage(shareCopy.copied)
         setShareError('')
-        return
+        return true
       }
     } catch (copyError) {
       console.error('Failed to copy share url:', copyError)
     }
 
-    setShareMessage('')
-    setShareError(shareCopy.copyFailed)
+    if (options?.silentFailure) {
+      setShareMessage(shareCopy.copyBlocked)
+    } else {
+      setShareMessage(shareCopy.copyBlocked)
+    }
+    setShareError('')
+    return false
   }
 
   const handleShare = async () => {
@@ -290,13 +301,16 @@ export function NoteEditor() {
     const nextShareState = await createShareLink(id)
     setShareLoading(false)
 
-    if (!nextShareState?.shareUrl) {
+    const nextShareUrl = nextShareState?.shareUrl
+
+    if (!nextShareState?.shareEnabled || !nextShareUrl) {
       setShareError(shareCopy.createFailed)
       return
     }
 
     setShareState(nextShareState)
-    await copyShareUrl(nextShareState.shareUrl)
+    setShareMessage(shareCopy.created)
+    await copyShareUrl(nextShareUrl, { silentFailure: true })
   }
 
   const handleDisableShare = async () => {
@@ -318,6 +332,17 @@ export function NoteEditor() {
 
     setShareState(nextShareState)
     setShareMessage(shareCopy.disabledSuccess)
+  }
+
+  const handleShareButtonClick = async () => {
+    if (shareUrl) {
+      setSharePanelOpen(true)
+      setShareMessage('')
+      setShareError('')
+      return
+    }
+
+    await handleShare()
   }
 
   const handleExport = () => {
@@ -479,7 +504,7 @@ export function NoteEditor() {
             <Download className="h-5 w-5" />
           </button>
           <button
-            onClick={() => void handleShare()}
+            onClick={() => void handleShareButtonClick()}
             className="rounded-xl bg-white/80 p-2 shadow-sm hover:bg-white dark:bg-[#1a1a1a] dark:hover:bg-[#232323]"
             title={copy.noteEditor.share}
           >
@@ -503,10 +528,10 @@ export function NoteEditor() {
             <div className="space-y-1">
               <div className="font-medium">{shareCopy.title}</div>
               <p className="text-xs text-sky-800/80 dark:text-sky-200/80">{shareCopy.description}</p>
-              {shareState?.shareEnabled && shareState.shareUrl ? (
+              {shareUrl ? (
                 <input
                   readOnly
-                  value={shareState.shareUrl}
+                  value={shareUrl}
                   className="w-full rounded-lg border border-sky-200 bg-white px-3 py-2 text-xs text-slate-700 outline-none dark:border-sky-900/50 dark:bg-slate-900 dark:text-slate-100 md:min-w-[420px]"
                 />
               ) : (
@@ -519,34 +544,37 @@ export function NoteEditor() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleShare()}
-                disabled={shareLoading}
-                className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
-              >
-                {shareLoading ? copy.common.loading : shareCopy.generate}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  if (shareState?.shareUrl) {
-                    void copyShareUrl(shareState.shareUrl)
-                  }
-                }}
-                disabled={!shareState?.shareUrl || shareLoading}
-                className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-800/50 dark:text-sky-100 dark:hover:bg-sky-950/50"
-              >
-                {shareCopy.copy}
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleDisableShare()}
-                disabled={!shareState?.shareEnabled || shareLoading}
-                className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
-              >
-                {shareCopy.disable}
-              </button>
+              {shareUrl ? (
+                <>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void copyShareUrl(shareUrl)
+                    }}
+                    disabled={shareLoading}
+                    className="rounded-lg border border-sky-200 px-3 py-2 text-xs font-medium text-sky-800 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-sky-800/50 dark:text-sky-100 dark:hover:bg-sky-950/50"
+                  >
+                    {shareCopy.copy}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleDisableShare()}
+                    disabled={shareLoading}
+                    className="rounded-lg border border-red-200 px-3 py-2 text-xs font-medium text-red-700 transition hover:bg-white disabled:cursor-not-allowed disabled:opacity-60 dark:border-red-900/40 dark:text-red-300 dark:hover:bg-red-950/30"
+                  >
+                    {shareCopy.disable}
+                  </button>
+                </>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => void handleShare()}
+                  disabled={shareLoading}
+                  className="rounded-lg bg-sky-600 px-3 py-2 text-xs font-medium text-white transition hover:bg-sky-700 disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {shareLoading ? copy.common.loading : shareCopy.create}
+                </button>
+              )}
             </div>
           </div>
         </div>
