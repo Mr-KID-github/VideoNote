@@ -582,7 +582,7 @@ export function NoteEditor() {
 
       {keyMoments.length > 0 ? (
         <div className="border-b border-gray-200 bg-white/70 px-4 py-3 xl:hidden dark:border-gray-800 dark:bg-[#151515]">
-          <div className="flex gap-3 overflow-x-auto">
+          <div className="stealth-scroll flex gap-3 overflow-x-auto">
             {keyMoments.map((moment) => (
               <button
                 key={`${moment.anchorId}-${moment.seconds}`}
@@ -630,7 +630,7 @@ export function NoteEditor() {
               <textarea
                 value={content}
                 onChange={(event) => setContent(event.target.value)}
-                className="min-h-0 flex-1 resize-none bg-white px-4 py-4 font-mono text-[13px] leading-6 outline-none dark:bg-[#111111]"
+                className="stealth-scroll min-h-0 flex-1 resize-none bg-white px-4 py-4 font-mono text-[13px] leading-6 outline-none dark:bg-[#111111]"
                 placeholder={copy.noteEditor.editorPlaceholder}
               />
             </section>
@@ -658,7 +658,7 @@ export function NoteEditor() {
                 </p>
               </div>
               <div className="flex min-h-0 flex-1 overflow-hidden">
-                <div ref={previewRef} className="min-w-0 flex-1 overflow-auto">
+                <div ref={previewRef} className="stealth-scroll min-w-0 flex-1 overflow-auto">
                   <MarkdownContent
                     content={content || copy.noteEditor.previewEmpty}
                     className="prose w-full max-w-none px-6 py-6 dark:prose-invert lg:px-8"
