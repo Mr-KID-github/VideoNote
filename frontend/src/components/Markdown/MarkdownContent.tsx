@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import type { ComponentType, ReactNode } from 'react'
 import ReactMarkdown from 'react-markdown'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
@@ -38,6 +38,14 @@ function slugifyHeading(children: ReactNode) {
   return slugifyHeadingText(flattenText(children))
 }
 
+const CodeHighlighter = SyntaxHighlighter as unknown as ComponentType<{
+  style: typeof oneDark
+  language?: string
+  PreTag?: string
+  className?: string
+  children: string
+}>
+
 function createHeading(level: 'h1' | 'h2' | 'h3', className: string) {
   return function Heading({ children }: { children?: ReactNode }) {
     const id = slugifyHeading(children)
@@ -65,14 +73,14 @@ export function MarkdownContent({ content, className, videoUrl, mediaUrl, onVide
           code({ className, children, ...props }) {
             const match = /language-(\w+)/.exec(className || '')
             return match ? (
-              <SyntaxHighlighter
+              <CodeHighlighter
                 style={oneDark}
                 language={match[1]}
                 PreTag="div"
                 className="rounded-lg"
               >
                 {String(children).replace(/\n$/, '')}
-              </SyntaxHighlighter>
+              </CodeHighlighter>
             ) : (
               <code className={`${className} bg-gray-200 dark:bg-gray-700 px-1 py-0.5 rounded`} {...props}>
                 {children}
