@@ -26,7 +26,7 @@ export function Home() {
         <div className="flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl space-y-3">
             <p className="text-sm uppercase tracking-[0.2em] text-gray-500 dark:text-gray-400">{copy.home.eyebrow}</p>
-            <h2 className="text-3xl font-bold">{copy.home.title}</h2>
+            <h2 className="text-3xl font-bold text-gray-900 dark:text-gray-100">{copy.home.title}</h2>
             <p className="text-gray-600 dark:text-gray-300">
               {copy.home.body} {isZh ? `当前目标工作区：${workspaceLabel}。` : `Current save target: ${workspaceLabel}.`}
             </p>
@@ -43,7 +43,7 @@ export function Home() {
             <button
               type="button"
               onClick={() => navigate('/notes')}
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 font-medium transition-colors hover:bg-gray-100 dark:border-gray-700 dark:hover:bg-gray-800"
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 px-4 py-2.5 font-medium text-gray-700 transition-colors hover:bg-gray-100 dark:border-gray-700 dark:text-gray-100 dark:hover:bg-gray-800"
             >
               {copy.home.viewLibrary}
               <ArrowRight className="h-4 w-4" />
@@ -55,7 +55,7 @@ export function Home() {
       <section className="space-y-4">
         <div className="flex items-center justify-between">
           <div>
-            <h3 className="text-xl font-semibold">{copy.home.recentNotes}</h3>
+            <h3 className="text-xl font-semibold text-gray-900 dark:text-gray-100">{copy.home.recentNotes}</h3>
             <p className="text-sm text-gray-500 dark:text-gray-400">
               {isZh ? `${workspaceLabel}里最近保存的内容。` : `Latest saved items from ${workspaceLabel}.`}
             </p>

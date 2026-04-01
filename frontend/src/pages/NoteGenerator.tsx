@@ -59,6 +59,18 @@ export function NoteGenerator() {
     void loadTeams()
   }, [loadProfiles, loadSTTProfiles, loadTeams])
 
+  useEffect(() => {
+    reset()
+
+    return () => {
+      if (pollRef.current) {
+        clearInterval(pollRef.current)
+        pollRef.current = null
+      }
+      reset()
+    }
+  }, [reset])
+
   const pollTaskStatus = (id: string, workspace = currentWorkspace) => {
     pollRef.current = setInterval(async () => {
       try {
@@ -143,12 +155,6 @@ export function NoteGenerator() {
       setError(generationError instanceof Error ? generationError.message : copy.generator.unknownError)
     }
   }
-
-  useEffect(() => () => {
-    if (pollRef.current) {
-      clearInterval(pollRef.current)
-    }
-  }, [])
 
   const selectedProfile = profiles.find((profile) => profile.id === selectedProfileId)
   const defaultProfile = profiles.find((profile) => profile.isDefault)
