@@ -14,6 +14,7 @@ from app.downloaders.ytdlp_downloader import YtdlpDownloader
 from app.llm.prompts import normalize_output_language, normalize_summary_mode
 from app.models.audio import AudioDownloadResult
 from app.models.note import NoteResult
+from app.models.transcript import TranscriptResult
 from app.services.llm_service import LLMService
 from app.services.note_media_service import NoteMediaService
 from app.services.screenshot_service import ScreenshotService
@@ -41,6 +42,7 @@ class PipelineContext:
     source_video_url: str | None
     task_start_time: float
     step_timings: dict[str, float]
+    preloaded_transcript: TranscriptResult | None = None
 
 
 class NoteService:
@@ -170,10 +172,63 @@ class NoteService:
                 user_id=user_id,
                 source_video_url=None,
                 task_start_time=task_start_time,
+                preloaded_transcript=None,
                 step_timings=step_timings,
             )
         except Exception as exc:
             logger.error("[Pipeline] local task=%s failed: %s", task_id, exc, exc_info=True)
+            if task_dir.exists():
+                self.artifact_service.update_status(task_dir, "failed", str(exc))
+            raise
+
+    def generate_from_transcript(
+        self,
+        transcript: TranscriptResult,
+        task_id: str,
+        title: str | None = None,
+        style: str = "meeting",
+        summary_mode: str = "default",
+        extras: Optional[str] = None,
+        output_language: str | None = None,
+        model_profile_id: Optional[str] = None,
+        stt_profile_id: Optional[str] = None,
+        model_name: str | None = None,
+        api_key: str | None = None,
+        base_url: str | None = None,
+        user_id: Optional[str] = None,
+    ) -> NoteResult:
+        task_start_time = time.time()
+        task_dir = self.artifact_service.create_task_dir(task_id)
+        step_timings: dict[str, float] = {}
+
+        try:
+            step_start = time.time()
+            self.artifact_service.update_status(task_dir, "preparing", "Preparing uploaded transcript...")
+            audio_meta = self._build_transcript_audio_meta(transcript=transcript, task_id=task_id, title=title)
+            self.artifact_service.save_audio_meta(task_dir, audio_meta)
+            step_timings["prepare"] = time.time() - step_start
+
+            return self._run_pipeline(
+                task_id=task_id,
+                task_dir=task_dir,
+                audio_meta=audio_meta,
+                style=style,
+                summary_mode=summary_mode,
+                extras=extras,
+                output_language=output_language,
+                model_profile_id=model_profile_id,
+                stt_profile_id=stt_profile_id,
+                model_name=model_name,
+                api_key=api_key,
+                base_url=base_url,
+                user_id=user_id,
+                source_video_url=None,
+                preloaded_transcript=transcript,
+                task_start_time=task_start_time,
+                step_timings=step_timings,
+            )
+        except Exception as exc:
+            logger.error("[Pipeline] transcript task=%s failed: %s", task_id, exc, exc_info=True)
             if task_dir.exists():
                 self.artifact_service.update_status(task_dir, "failed", str(exc))
             raise
@@ -200,6 +255,28 @@ class NoteService:
             raw_info={},
         )
 
+    def _build_transcript_audio_meta(
+        self,
+        *,
+        transcript: TranscriptResult,
+        task_id: str,
+        title: str | None,
+    ) -> AudioDownloadResult:
+        transcript_title = title or "Uploaded transcript"
+        return AudioDownloadResult(
+            file_path="",
+            title=transcript_title,
+            duration=max(
+                0.0,
+                max((segment.end for segment in transcript.segments), default=0.0),
+            ),
+            video_id=task_id,
+            platform="transcript",
+            cover_url=None,
+            raw_info={},
+        )
+
+
     def _run_pipeline(
         self,
         *,
@@ -215,6 +292,7 @@ class NoteService:
         model_name: str | None,
         api_key: str | None,
         base_url: str | None,
+        preloaded_transcript: TranscriptResult | None,
         user_id: str | None,
         source_video_url: str | None,
         task_start_time: float,
@@ -237,6 +315,7 @@ class NoteService:
             api_key=api_key,
             base_url=base_url,
             user_id=user_id,
+            preloaded_transcript=preloaded_transcript,
             source_video_url=source_video_url,
             task_start_time=task_start_time,
             step_timings=step_timings,
@@ -258,6 +337,12 @@ class NoteService:
             raise
 
     def _transcribe_audio(self, context: PipelineContext):
+        if context.preloaded_transcript is not None:
+            self.artifact_service.update_status(context.task_dir, "transcribing", "Using uploaded transcript...")
+            self.artifact_service.save_transcript(context.task_dir, context.preloaded_transcript)
+            context.step_timings["transcribe"] = 0.0
+            return context.preloaded_transcript
+
         step_start = time.time()
         self.artifact_service.update_status(context.task_dir, "transcribing", "Transcribing audio...")
         transcript = self.transcription_service.transcribe(
@@ -302,12 +387,14 @@ class NoteService:
         return markdown
 
     def _enrich_markdown_with_media(self, context: PipelineContext, transcript, markdown: str) -> str:
-        local_audio_path = self.artifact_service.stage_media_file(
-            context.task_dir,
-            context.audio_meta.file_path,
-            target_stem="source_audio",
-        )
-        media_url = f"/api/task/{context.task_id}/artifacts/media/{local_audio_path.name}"
+        media_url = ""
+        if context.audio_meta.file_path and os.path.exists(context.audio_meta.file_path):
+            local_audio_file = self.artifact_service.stage_media_file(
+                context.task_dir,
+                context.audio_meta.file_path,
+                target_stem="source_audio",
+            )
+            media_url = f"/api/task/{context.task_id}/artifacts/media/{local_audio_file.name}"
         local_video_path = None
 
         if not context.source_video_url:
