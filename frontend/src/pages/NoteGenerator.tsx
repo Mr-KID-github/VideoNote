@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { ArrowLeft, Wand2 } from 'lucide-react'
-import { FileUploader } from '../components/NoteGenerator/FileUploader'
+import { FileUploader, type UploadMode } from '../components/NoteGenerator/FileUploader'
 import { GenerateProgress } from '../components/NoteGenerator/GenerateProgress'
 import { useI18n } from '../lib/i18n'
 import { apiJson } from '../lib/api'
@@ -26,6 +26,7 @@ type TaskStatusResponse = {
 export function NoteGenerator() {
   const [videoUrl, setVideoUrl] = useState('')
   const [selectedFile, setSelectedFile] = useState<File | null>(null)
+  const [uploadMode, setUploadMode] = useState<UploadMode>('url')
   const [summaryMode, setSummaryMode] = useState<SummaryMode>('default')
   const [, setTaskId] = useState('')
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
@@ -59,7 +60,7 @@ export function NoteGenerator() {
     void loadTeams()
   }, [loadProfiles, loadSTTProfiles, loadTeams])
 
-  const pollTaskStatus = (id: string, workspace = currentWorkspace) => {
+  const pollTaskStatus = (id: string, workspace = currentWorkspace, sourceUrl = '') => {
     pollRef.current = setInterval(async () => {
       try {
         const data = await apiJson<TaskStatusResponse>(`/api/task/${id}`)
@@ -73,7 +74,7 @@ export function NoteGenerator() {
           const note = await saveNote(
             data.result?.title || '',
             data.result?.markdown || '',
-            videoUrl,
+            sourceUrl || undefined,
             data.result?.task_id || id,
             workspace,
           )
@@ -105,7 +106,9 @@ export function NoteGenerator() {
   }
 
   const handleGenerate = async () => {
-    if (!videoUrl && !selectedFile) return
+    if ((uploadMode === 'url' && !videoUrl) || (uploadMode !== 'url' && !selectedFile)) {
+      return
+    }
 
     reset()
     setStatus('uploading')
@@ -114,30 +117,58 @@ export function NoteGenerator() {
 
     try {
       const generationWorkspace = currentWorkspace
-      if (selectedFile) {
-        throw new Error(copy.generator.browserOnlyError)
+      let data: TaskResponse
+      const sourceUrl = uploadMode === 'url' ? videoUrl : ''
+
+      if (uploadMode === 'url') {
+        setCurrentStep('downloading')
+        setProgress(20)
+        data = await apiJson<TaskResponse>('/api/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            video_url: videoUrl,
+            summary_mode: summaryMode,
+            output_language: language,
+            model_profile_id: selectedProfileId || undefined,
+            stt_profile_id: selectedSTTProfileId || undefined,
+          }),
+        })
+      } else {
+        if (!selectedFile) {
+          throw new Error(copy.generator.fileRequired)
+        }
+
+        const formData = new FormData()
+        const sourceType = uploadMode === 'transcript'
+          ? 'transcript'
+          : selectedFile.type.startsWith('video/')
+            ? 'video'
+            : 'audio'
+
+        formData.append('file', selectedFile)
+        formData.append('source_type', sourceType)
+        formData.append('title', selectedFile.name)
+        formData.append('summary_mode', summaryMode)
+        formData.append('output_language', language)
+        if (selectedProfileId) {
+          formData.append('model_profile_id', selectedProfileId)
+        }
+        if (selectedSTTProfileId) {
+          formData.append('stt_profile_id', selectedSTTProfileId)
+        }
+
+        data = await apiJson<TaskResponse>('/api/generate_from_upload', {
+          method: 'POST',
+          body: formData,
+        })
       }
-
-      setCurrentStep('downloading')
-      setProgress(20)
-
-      const data = await apiJson<TaskResponse>('/api/generate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          video_url: videoUrl,
-          summary_mode: summaryMode,
-          output_language: language,
-          model_profile_id: selectedProfileId || undefined,
-          stt_profile_id: selectedSTTProfileId || undefined,
-        }),
-      })
 
       setTaskId(data.task_id)
       setStatus('processing')
       setCurrentStep('transcribing')
       setProgress(30)
-      pollTaskStatus(data.task_id, generationWorkspace)
+      pollTaskStatus(data.task_id, generationWorkspace, sourceUrl)
     } catch (generationError) {
       setStatus('failed')
       setError(generationError instanceof Error ? generationError.message : copy.generator.unknownError)
@@ -157,44 +188,25 @@ export function NoteGenerator() {
   const workspaceLabel = getWorkspaceLabel(
     currentWorkspace,
     teams,
-    language === 'zh-CN' ? '个人空间' : 'Personal workspace',
+    copy.sidebar.home,
   )
-  const summaryModeOptions: Array<{ value: SummaryMode; label: string; description: string }> =
-    language === 'zh-CN'
-      ? [
-          {
-            value: 'default',
-            label: '默认总结模式',
-            description: '短内容一次性整理，长内容自动切换到分段整理后再合并。',
-          },
-          {
-            value: 'accurate',
-            label: '精确总结模式',
-            description: '先分段提炼，再统一整合，优先保证覆盖率和稳定性。',
-          },
-          {
-            value: 'oneshot',
-            label: '一次性总结模式',
-            description: '把全部转录一次性交给模型，优先保留统一文风。',
-          },
-        ]
-      : [
-          {
-            value: 'default',
-            label: 'Default summary mode',
-            description: 'Short transcripts use one-shot summarization; long transcripts switch to chunk-first merging automatically.',
-          },
-          {
-            value: 'accurate',
-            label: 'Accurate summary mode',
-            description: 'Summarize in chunks first, then merge globally for better coverage and stability.',
-          },
-          {
-            value: 'oneshot',
-            label: 'One-shot summary mode',
-            description: 'Send the whole transcript in one pass and preserve a single writing style.',
-          },
-        ]
+  const summaryModeOptions: Array<{ value: SummaryMode; label: string; description: string }> = [
+    {
+      value: 'default' as SummaryMode,
+      label: copy.generator.summaryModeDefaultLabel,
+      description: copy.generator.summaryModeDefaultDesc,
+    },
+    {
+      value: 'accurate' as SummaryMode,
+      label: copy.generator.summaryModeAccurateLabel,
+      description: copy.generator.summaryModeAccurateDesc,
+    },
+    {
+      value: 'oneshot' as SummaryMode,
+      label: copy.generator.summaryModeOneshotLabel,
+      description: copy.generator.summaryModeOneshotDesc,
+    },
+  ]
   const selectedSummaryMode = summaryModeOptions.find((option) => option.value === summaryMode)
   const formatSTTProfileLabel = (name: string, profile: { provider: string; modelName: string | null; language: string | null }) => {
     const detail = profile.modelName || profile.language || profile.provider
@@ -218,18 +230,17 @@ export function NoteGenerator() {
           videoUrl={videoUrl}
           onVideoUrlChange={setVideoUrl}
           onFileSelect={setSelectedFile}
-          fileUploadEnabled={false}
+          onModeChange={setUploadMode}
+          fileUploadEnabled={true}
         />
 
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
           <label className="block text-sm font-medium mb-2">
-            {language === 'zh-CN' ? '保存目标工作区' : 'Save target workspace'}
+            {copy.generator.saveTargetWorkspace}
           </label>
           <p className="text-sm text-gray-600 dark:text-gray-300">{workspaceLabel}</p>
           <p className="mt-2 text-xs text-gray-500 dark:text-gray-400">
-            {language === 'zh-CN'
-              ? '生成完成后，这篇笔记会直接保存到当前选中的工作区。'
-              : 'When generation finishes, the note will be saved into the currently selected workspace.'}
+            {copy.generator.saveTargetWorkspaceHint}
           </p>
         </div>
 
@@ -285,7 +296,7 @@ export function NoteGenerator() {
 
         <div className="p-4 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-[#202020]">
           <label className="block text-sm font-medium mb-2">
-            {language === 'zh-CN' ? '总结模式' : 'Summary mode'}
+            {copy.generator.summaryMode}
           </label>
           <select
             value={summaryMode}
@@ -305,7 +316,7 @@ export function NoteGenerator() {
 
         <button
           onClick={() => void handleGenerate()}
-          disabled={status !== 'idle' || (!videoUrl && !selectedFile)}
+          disabled={status !== 'idle' || (uploadMode === 'url' ? !videoUrl : !selectedFile)}
           className="w-full flex items-center justify-center gap-2 py-3 px-6 bg-primary-light dark:bg-primary-dark text-white font-medium rounded-lg hover:opacity-90 transition-opacity disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Wand2 className="w-5 h-5" />
