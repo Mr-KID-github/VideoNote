@@ -84,13 +84,11 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          backend_port="${BACKEND_PORT:-8900}"
-          frontend_port="${FRONTEND_PORT:-3100}"
-          docs_port="${DOCS_PORT:-3101}"
-
-          curl --fail --silent --show-error "http://127.0.0.1:${backend_port}/healthz" >/dev/null
-          curl --fail --silent --show-error "http://127.0.0.1:${frontend_port}/" >/dev/null
-          curl --fail --silent --show-error "http://127.0.0.1:${docs_port}/" >/dev/null
+          python scripts/check_reverse_proxy.py \
+            --host 127.0.0.1 \
+            --backend-port "${BACKEND_PORT:-8900}" \
+            --frontend-port "${FRONTEND_PORT:-3100}" \
+            --docs-port "${DOCS_PORT:-3101}"
 
       - name: Show compose status
         shell: bash

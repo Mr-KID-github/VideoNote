@@ -4,6 +4,7 @@ uvicorn[standard]==0.34.0
 
 # Environment & config
 python-dotenv==1.0.1
+python-multipart==0.0.20
 
 # Video/Audio download
 yt-dlp==2024.12.23
