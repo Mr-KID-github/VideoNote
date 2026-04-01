@@ -36,6 +36,7 @@ The backend can also run as a lightweight MCP server through `mcp_server.py`.
   - `stores/`: Zustand stores for auth, theme, note generation, note library, team workspace selection, model profiles, STT profiles, and language.
   - `lib/`: API wrapper, Supabase client, i18n copy, and model/STT profile client helpers.
 - `supabase/`: local Supabase config, start scripts, and SQL migrations.
+- `scripts/`: repository-level diagnostics and deployment smoke checks such as `check_reverse_proxy.py` for validating backend health plus frontend `/api` proxying.
 - `tests/`: backend unit tests.
 - `docs/plans/`: product/design implementation notes.
 - `docs/.vitepress/`: standalone VitePress docs site config and navigation.
@@ -117,6 +118,7 @@ The repository already contains backend tests under `tests/`.
 
 Recommended checks after code changes:
 - Backend unit tests: `pytest tests`
+- Reverse-proxy smoke check: `python scripts/check_reverse_proxy.py --host 127.0.0.1 --backend-port 8900 --frontend-port 3100 --docs-port 3101`
 - Frontend type/build check: `cd frontend && npm run build`
 - Docs build check: `cd docs && npm run docs:build`
 - Raspberry Pi CI deploy script syntax check: `bash -n deploy/pi/deploy-from-checkout.sh`
