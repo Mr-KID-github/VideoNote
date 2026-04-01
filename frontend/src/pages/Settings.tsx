@@ -19,7 +19,7 @@ export function Settings() {
 
   return (
     <div className="max-w-[1440px] mx-auto p-6 lg:p-8">
-      <h2 className="text-2xl font-bold mb-6 lg:mb-8">{copy.settings.title}</h2>
+      <h2 className="mb-6 text-2xl font-bold text-gray-900 dark:text-gray-100 lg:mb-8">{copy.settings.title}</h2>
 
       <div className="flex flex-col gap-8 lg:flex-row">
         <SettingsNav activeTab={activeTab} onChange={setActiveTab} />

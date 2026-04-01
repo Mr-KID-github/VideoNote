@@ -26,7 +26,7 @@ export function MainLayout() {
       />
       <div className="min-h-0 flex flex-1 overflow-hidden">
         <Sidebar collapsed={sidebarCollapsed} />
-        <main className="stealth-scroll flex-1 overflow-auto bg-white dark:bg-[#191919]">
+        <main className="stealth-scroll flex-1 overflow-auto bg-white text-gray-900 dark:bg-[#191919] dark:text-gray-100">
           <Outlet />
         </main>
       </div>
