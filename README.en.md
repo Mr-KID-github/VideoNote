@@ -4,6 +4,8 @@
 
 VINote is a full-stack workspace that turns video or audio content into structured Markdown notes.
 
+Current release: `v0.2.0`
+
 Current stack:
 
 - Frontend: React 18 + Vite + TypeScript
@@ -14,7 +16,8 @@ Current stack:
 
 ## Core capabilities
 
-- Generate structured Markdown notes from video URLs
+- Generate structured Markdown notes from video URLs, local audio/video files, or local transcript files
+- Skip the STT step when a transcript is already available
 - Support multiple summary modes: `default`, `accurate`, `oneshot`
 - Add key moments, timestamp jumps, and screenshots
 - Save notes and continue editing in the built-in editor
@@ -22,6 +25,13 @@ Current stack:
 - Support LLM and STT profile management
 - Expose both a standalone docs site and FastAPI Swagger / ReDoc
 - Provide bilingual docs: Simplified Chinese by default, English under `/en/`
+
+## Input modes
+
+- The browser generator supports three source modes: video URL, local media file, and local transcript
+- `POST /api/generate` handles remote URL input
+- `POST /api/generate_from_upload` handles browser multipart uploads for local audio, video, and transcript files
+- Transcript uploads support `TXT`, `MD`, `SRT`, `VTT`, and `JSON` and skip STT entirely
 
 ## Documentation
 
@@ -233,6 +243,7 @@ Useful checks:
 - Docs build: `cd docs && npm run docs:build`
 - Backend health: `GET /healthz`
 - Swagger: `http://127.0.0.1:8900/docs`
+- Browser smoke test: verify URL, local media, and local transcript generation paths
 - Frontend build:
 
 ```bash

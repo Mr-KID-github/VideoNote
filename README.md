@@ -4,6 +4,8 @@
 
 VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全栈工作台。
 
+当前版本：`v0.2.0`
+
 当前技术栈：
 
 - 前端：React 18 + Vite + TypeScript
@@ -14,7 +16,8 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 
 ## 核心能力
 
-- 从视频 URL 生成结构化 Markdown 笔记
+- 从视频 URL、本地音频/视频文件或本地文字稿生成结构化 Markdown 笔记
+- 已有文字稿时可直接跳过 STT，缩短生成链路并减少额外转写成本
 - 支持多种总结模式：`default`、`accurate`、`oneshot`
 - 自动补充关键时刻、时间戳跳转和截图
 - 保存笔记并在内置编辑器中继续修改
@@ -22,6 +25,13 @@ VINote 是一个将视频或音频内容转换为结构化 Markdown 笔记的全
 - 支持 LLM / STT 配置管理
 - 同时提供独立文档站与 FastAPI Swagger / ReDoc
 - 文档支持中英文双语，默认中文，英文入口为 `/en/`
+
+## 输入入口
+
+- 浏览器生成页支持三种模式：视频 URL、本地音频/视频文件、本地文字稿
+- `POST /api/generate` 处理 URL 输入
+- `POST /api/generate_from_upload` 处理浏览器上传的本地音频、视频和文字稿
+- 上传文字稿时支持 `TXT`、`MD`、`SRT`、`VTT`、`JSON`，并直接跳过 STT
 
 ## 文档说明
 
@@ -233,6 +243,7 @@ workflow 会：
 - 文档站构建：`cd docs && npm run docs:build`
 - 后端健康检查：`GET /healthz`
 - Swagger：`http://127.0.0.1:8900/docs`
+- 浏览器上传冒烟：分别测试 URL、本地音视频、本地文字稿三种生成入口
 - 前端构建：
 
 ```bash
