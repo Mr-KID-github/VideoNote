@@ -72,7 +72,11 @@ export function NoteGenerator() {
     }
   }, [reset])
 
-  const pollTaskStatus = (id: string, workspace = currentWorkspace) => {
+  const pollTaskStatus = (
+    id: string,
+    workspace = currentWorkspace,
+    sourceUrl?: string,
+  ) => {
     pollRef.current = setInterval(async () => {
       try {
         const data = await apiJson<TaskStatusResponse>(`/api/task/${id}`)
